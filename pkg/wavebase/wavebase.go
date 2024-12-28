@@ -31,6 +31,17 @@ const (
 	WaveDevViteVarName   = "WAVETERM_DEV_VITE"
 )
 
+const (
+	CacheDirKey_WaveHome    = "wavehome"
+	CacheDirKey_WaveDB      = "wavedb"
+	CacheDirKey_WaveConf    = "waveconfig"
+	CacheDirKey_WavePresets = "wavepresets"
+	CacheDirKey_ZshDir      = "zshdir"
+	CacheDirKey_BashDir     = "bashdir"
+	CacheDirKey_PwshDir     = "pwshdir"
+	CacheDirKey_WshBinDir   = "wshbindir"
+)
+
 var ConfigHome_VarCache string // caches WAVETERM_CONFIG_HOME
 var DataHome_VarCache string   // caches WAVETERM_DATA_HOME
 var AppPath_VarCache string    // caches WAVETERM_APP_PATH
@@ -142,19 +153,19 @@ func GetRemoteDomainSocketName() string {
 }
 
 func EnsureWaveDataDir() error {
-	return CacheEnsureDir(GetWaveDataDir(), "wavehome", 0700, "wave home directory")
+	return CacheEnsureDir(GetWaveDataDir(), CacheDirKey_WaveHome, 0700, "wave home directory")
 }
 
 func EnsureWaveDBDir() error {
-	return CacheEnsureDir(filepath.Join(GetWaveDataDir(), WaveDBDir), "wavedb", 0700, "wave db directory")
+	return CacheEnsureDir(filepath.Join(GetWaveDataDir(), WaveDBDir), CacheDirKey_WaveDB, 0700, "wave db directory")
 }
 
 func EnsureWaveConfigDir() error {
-	return CacheEnsureDir(GetWaveConfigDir(), "waveconfig", 0700, "wave config directory")
+	return CacheEnsureDir(GetWaveConfigDir(), CacheDirKey_WaveConf, 0700, "wave config directory")
 }
 
 func EnsureWavePresetsDir() error {
-	return CacheEnsureDir(filepath.Join(GetWaveConfigDir(), "presets"), "wavepresets", 0700, "wave presets directory")
+	return CacheEnsureDir(filepath.Join(GetWaveConfigDir(), "presets"), CacheDirKey_WavePresets, 0700, "wave presets directory")
 }
 
 func CacheEnsureDir(dirName string, cacheKey string, perm os.FileMode, dirDesc string) error {

@@ -234,17 +234,17 @@ func GetWshBinaryPath(version string, goos string, goarch string) string {
 func InitRcFiles(waveHome string, wshBinDir string) error {
 	// ensure directiries exist
 	zshDir := filepath.Join(waveHome, ZshIntegrationDir)
-	err := wavebase.CacheEnsureDir(zshDir, ZshIntegrationDir, 0755, ZshIntegrationDir)
+	err := wavebase.CacheEnsureDir(zshDir, wavebase.CacheDirKey_ZshDir, 0755, ZshIntegrationDir)
 	if err != nil {
 		return err
 	}
 	bashDir := filepath.Join(waveHome, BashIntegrationDir)
-	err = wavebase.CacheEnsureDir(bashDir, BashIntegrationDir, 0755, BashIntegrationDir)
+	err = wavebase.CacheEnsureDir(bashDir, wavebase.CacheDirKey_BashDir, 0755, BashIntegrationDir)
 	if err != nil {
 		return err
 	}
 	pwshDir := filepath.Join(waveHome, PwshIntegrationDir)
-	err = wavebase.CacheEnsureDir(pwshDir, PwshIntegrationDir, 0755, PwshIntegrationDir)
+	err = wavebase.CacheEnsureDir(pwshDir, wavebase.CacheDirKey_PwshDir, 0755, PwshIntegrationDir)
 	if err != nil {
 		return err
 	}
@@ -296,7 +296,7 @@ func initCustomShellStartupFilesInternal() error {
 		return err
 	}
 
-	err = wavebase.CacheEnsureDir(binDir, WaveHomeBinDir, 0755, WaveHomeBinDir)
+	err = wavebase.CacheEnsureDir(binDir, wavebase.CacheDirKey_WshBinDir, 0755, WaveHomeBinDir)
 	if err != nil {
 		return err
 	}
