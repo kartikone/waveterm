@@ -34,4 +34,14 @@ Legend: ✅ Done | 🔧 In Progress | 🔷 Planned | 🤞 Stretch Goal
 
 ## Future Releases
 
-Check back soon for longer-term roadmap items.
+## v0.12
+
+- 🔷 Import/Export Tab Layouts and Widgets
+
+## Planned (Unscheduled)
+
+- 🔷 Customizable Keybindings
+  - 🔷 Launch widgets with custom keybindings
+  - 🔷 Re-assign system keybindings
+- 🔷 Command Palette
+- 🔷 AI Context
