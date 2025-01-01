@@ -8,12 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -137,6 +137,87 @@ func GetClientArch(ctx context.Context, client *Distro) (string, error) {
 	return "", fmt.Errorf("unable to determine architecture: {unix: %s, cmd: %s, powershell: %s}", unixErr, cmdErr, psErr)
 }
 
+var installTemplateRawDefault = strings.TrimSpace(`
+mkdir -p {{.installDir}} || exit 1
+cat > {{.tempPath}}
+mv {{.tempPath}} {{.installPath}} || exit 1
+chmod a+x {{.installPath}} || exit 1
+`)
+var installTemplate = template.Must(template.New("").Parse(installTemplateRawDefault))
+
+func CpHostToRemote(ctx context.Context, client *Distro, sourcePath string, destPath string) error {
+	// I need to use toSlash here to force unix paths
+	var installWords = map[string]string{
+		"installDir":  filepath.ToSlash(filepath.Dir(destPath)),
+		"tempPath":    destPath + ".temp",
+		"installPath": destPath,
+	}
+
+	cmdStr := &bytes.Buffer{}
+	if err := installTemplate.Execute(cmdStr, installWords); err != nil {
+		return fmt.Errorf("failed to prepare install command: %w", err)
+	}
+
+	// add degug log of the command
+	log.Printf("running wsl command: %s", cmdStr)
+
+	installCmd := client.WslCommand(ctx, cmdStr.String())
+
+	installStdin, err := installCmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("failed to get stdin pipe: %w", err)
+	}
+
+	// add stderr capture
+	var stderr bytes.Buffer
+	installCmd.c.Stderr = &stderr
+
+	err = installCmd.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start wsl command: %w", err)
+	}
+
+	input, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("cannot open local file %s to send to host: %v", sourcePath, err)
+	}
+	defer input.Close()
+
+	copyDone := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("connutil:CpHostToRemote", recover())
+		}()
+		defer close(copyDone)
+		defer installStdin.Close()
+		//defer installCmd.c.Process.Signal(syscall.SIGTERM)
+		_, err = io.Copy(installStdin, input)
+		if err != nil && err != io.EOF {
+			copyDone <- err
+			return
+		}
+		copyDone <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-copyDone:
+		if err != nil {
+			return fmt.Errorf("failed to copy data: %w", err)
+		}
+	}
+
+	time.Sleep(10 * time.Second)
+	if err := installCmd.Wait(); err != nil {
+		return fmt.Errorf("remote command failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	return nil
+}
+
+// old code down here
 type CancellableCmd struct {
 	Cmd    *WslCmd
 	Cancel func()
@@ -171,7 +252,7 @@ func makeCancellableCommand(ctx context.Context, client *Distro, cmdTemplateRaw 
 	return &CancellableCmd{cmd, cmdCancel}, nil
 }
 
-func CpHostToRemote(ctx context.Context, client *Distro, sourcePath string, destPath string) error {
+func CpHostToRemoteOld(ctx context.Context, client *Distro, sourcePath string, destPath string) error {
 	// warning: does not work on windows remote yet
 	bashInstalled, err := hasBashInstalled(ctx, client)
 	if err != nil {
