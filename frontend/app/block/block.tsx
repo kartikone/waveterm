@@ -32,6 +32,7 @@ import { WebViewModel } from "@/view/webview/webview";
 import clsx from "clsx";
 import { atom, useAtomValue } from "jotai";
 import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ConnManagerModel } from "../view/connmanager/connmanager";
 import "./block.scss";
 import { BlockFrame } from "./blockframe";
 import { blockViewToIcon, blockViewToName } from "./blockutil";
@@ -46,6 +47,7 @@ BlockRegistry.set("sysinfo", SysinfoViewModel);
 BlockRegistry.set("vdom", VDomModel);
 BlockRegistry.set("help", HelpViewModel);
 BlockRegistry.set("launcher", LauncherViewModel);
+BlockRegistry.set("connmanager", ConnManagerModel);
 
 function makeViewModel(blockId: string, blockView: string, nodeModel: BlockNodeModel): ViewModel {
     const ctor = BlockRegistry.get(blockView);

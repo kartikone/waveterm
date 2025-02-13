@@ -18,7 +18,7 @@ type WslName struct {
 }
 
 func RegisteredDistros(ctx context.Context) (distros []Distro, err error) {
-	return nil, fmt.Errorf("RegisteredDistros not implemented on this system")
+	return []Distro{}, nil
 }
 
 func DefaultDistro(ctx context.Context) (d Distro, ok bool, err error) {
