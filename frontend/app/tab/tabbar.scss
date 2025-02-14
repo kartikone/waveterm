@@ -16,6 +16,8 @@
     max-width: 500px;
 
     h3 {
+        font-weight: bold;
+        font-size: 16px;
         margin-bottom: 10px;
     }
 
@@ -23,22 +25,29 @@
 }
 
 .tab-bar-wrapper {
+    padding-top: 6px;
     position: relative;
     user-select: none;
     display: flex;
     flex-direction: row;
-    width: env(titlebar-area-width);
+    width: 100vw;
+    -webkit-app-region: drag;
+
+    button {
+        -webkit-app-region: no-drag;
+    }
 
     .tabs-wrapper {
         transition: var(--tabs-wrapper-transition);
-        height: 32px;
+        height: 26px;
     }
 
     .tab-bar {
         position: relative; // Needed for absolute positioning of child tabs
         display: flex;
         flex-direction: row;
-        height: 33px;
+        height: 27px;
+        -webkit-app-region: no-drag;
     }
 
     .pinned-tab-spacer {
@@ -55,7 +64,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 6px 6px 0 0;
+        padding: 0 6px 0 0;
     }
 
     .app-menu-button {
@@ -71,34 +80,24 @@
         color: var(--accent-color);
     }
 
+    .tab-bar-right {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        &:not(:empty) {
+            margin-left: auto;
+            margin-right: 6px;
+        }
+    }
+
     .config-error-button {
-        height: 80%;
-        margin: auto 4px;
         color: black;
+        padding: 0 6px;
         flex: 0 0 fit-content;
     }
 
-    .add-tab-btn {
-        width: 22px;
-        height: 100%;
-        cursor: pointer;
-        font-size: 14px;
-        text-align: center;
-        user-select: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0.5;
-
-        &:hover {
-            opacity: 1;
-        }
-
-        i {
-            overflow: hidden;
-            margin-top: 5px;
-            font-size: 11px;
-        }
+    .add-tab {
+        padding: 0 10px;
     }
 
     .window-drag {

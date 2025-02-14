@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { dialog, ipcMain, Notification } from "electron";
@@ -6,7 +6,6 @@ import { autoUpdater } from "electron-updater";
 import { readFileSync } from "fs";
 import path from "path";
 import YAML from "yaml";
-import { FileService } from "../frontend/app/store/services";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { isDev } from "../frontend/util/isdev";
 import { fireAndForget } from "../frontend/util/util";
@@ -96,7 +95,7 @@ export class Updater {
                 body: "A new version of Wave Terminal is ready to install.",
             });
             updateNotification.on("click", () => {
-                fireAndForget(() => this.promptToInstallUpdate());
+                fireAndForget(this.promptToInstallUpdate.bind(this));
             });
             updateNotification.show();
         });
@@ -112,7 +111,7 @@ export class Updater {
     private set status(value: UpdaterStatus) {
         this._status = value;
         getAllWaveWindows().forEach((window) => {
-            const allTabs = Array.from(window.allTabViews.values());
+            const allTabs = Array.from(window.allLoadedTabViews.values());
             allTabs.forEach((tab) => {
                 tab.webContents.send("app-update-status", value);
             });
@@ -164,7 +163,9 @@ export class Updater {
                     type: "info",
                     message: "There are currently no updates available.",
                 };
-                dialog.showMessageBox(focusedWaveWindow, dialogOpts);
+                if (focusedWaveWindow) {
+                    dialog.showMessageBox(focusedWaveWindow, dialogOpts);
+                }
             }
 
             // Only update the last check time if this is an automatic check. This ensures the interval remains consistent.
@@ -188,7 +189,7 @@ export class Updater {
         if (allWindows.length > 0) {
             await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts).then(({ response }) => {
                 if (response === 0) {
-                    fireAndForget(async () => this.installUpdate());
+                    fireAndForget(this.installUpdate.bind(this));
                 }
             });
         }
@@ -210,7 +211,7 @@ export function getResolvedUpdateChannel(): string {
     return isDev() ? "dev" : (autoUpdater.channel ?? "latest");
 }
 
-ipcMain.on("install-app-update", () => fireAndForget(() => updater?.promptToInstallUpdate()));
+ipcMain.on("install-app-update", () => fireAndForget(updater?.promptToInstallUpdate.bind(updater)));
 ipcMain.on("get-app-update-status", (event) => {
     event.returnValue = updater?.status;
 });
@@ -238,7 +239,7 @@ export async function configureAutoUpdater() {
 
     try {
         console.log("Configuring updater");
-        const settings = (await FileService.GetFullConfig()).settings;
+        const settings = (await RpcApi.GetFullConfigCommand(ElectronWshClient)).settings;
         updater = new Updater(settings);
         await updater.start();
     } catch (e) {

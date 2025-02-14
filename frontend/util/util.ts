@@ -1,10 +1,11 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0s
 
 import base64 from "base64-js";
 import clsx from "clsx";
 import { Atom, atom, Getter, SetStateAction, Setter, useAtomValue } from "jotai";
 import { debounce, throttle } from "throttle-debounce";
+const prevValueCache = new WeakMap<any, any>(); // stores a previous value for a deep equal comparison (used with the deepCompareReturnPrev function)
 
 function isBlank(str: string): boolean {
     return str == null || str == "";
@@ -40,6 +41,20 @@ function boundNumber(num: number, min: number, max: number): number {
         return null;
     }
     return Math.min(Math.max(num, min), max);
+}
+
+// key must be a suitable weakmap key.  pass the new value
+// it will return the prevValue (for object equality) if the new value is deep equal to the prev value
+function deepCompareReturnPrev(key: any, newValue: any): any {
+    if (key == null) {
+        return newValue;
+    }
+    const previousValue = prevValueCache.get(key);
+    if (previousValue !== undefined && JSON.stringify(newValue) === JSON.stringify(previousValue)) {
+        return previousValue;
+    }
+    prevValueCache.set(key, newValue);
+    return newValue;
 }
 
 // works for json-like objects (arrays, objects, strings, numbers, booleans)
@@ -91,7 +106,7 @@ function makeIconClass(icon: string, fw: boolean, opts?: { spin?: boolean; defau
     if (icon.match(/^(solid@)?[a-z0-9-]+$/)) {
         // strip off "solid@" prefix if it exists
         icon = icon.replace(/^solid@/, "");
-        return clsx(`fa fa-sharp fa-solid fa-${icon}`, fw ? "fa-fw" : null, opts?.spin ? "fa-spin" : null);
+        return clsx(`fa fa-solid fa-${icon}`, fw ? "fa-fw" : null, opts?.spin ? "fa-spin" : null);
     }
     if (icon.match(/^regular@[a-z0-9-]+$/)) {
         // strip off the "regular@" prefix if it exists
@@ -102,6 +117,11 @@ function makeIconClass(icon: string, fw: boolean, opts?: { spin?: boolean; defau
         // strip off the "brands@" prefix if it exists
         icon = icon.replace(/^brands@/, "");
         return clsx(`fa fa-brands fa-${icon}`, fw ? "fa-fw" : null, opts?.spin ? "fa-spin" : null);
+    }
+    if (icon.match(/^custom@[a-z0-9-]+$/)) {
+        // strip off the "custom@" prefix if it exists
+        icon = icon.replace(/^custom@/, "");
+        return clsx(`fa fa-kit fa-${icon}`, fw ? "fa-fw" : null, opts?.spin ? "fa-spin" : null);
     }
     if (opts?.defaultIcon != null) {
         return makeIconClass(opts.defaultIcon, fw, { spin: opts?.spin });
@@ -282,6 +302,104 @@ function makeConnRoute(conn: string): string {
     return "conn:" + conn;
 }
 
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function makeNativeLabel(platform: string, isDirectory: boolean, isParent: boolean) {
+    let managerName: string;
+    if (!isDirectory && !isParent) {
+        managerName = "Default Application";
+    } else if (platform == "darwin") {
+        managerName = "Finder";
+    } else if (platform == "win32") {
+        managerName = "Explorer";
+    } else {
+        managerName = "File Manager";
+    }
+
+    let fileAction: string;
+    if (isParent) {
+        fileAction = "Reveal";
+    } else if (isDirectory) {
+        fileAction = "Open Directory";
+    } else {
+        fileAction = "Open File";
+    }
+    return `${fileAction} in ${managerName}`;
+}
+
+function mergeMeta(meta: MetaType, metaUpdate: MetaType, prefix?: string): MetaType {
+    const rtn: MetaType = {};
+
+    // Helper function to check if a key matches the prefix criteria
+    const shouldIncludeKey = (key: string): boolean => {
+        if (prefix === undefined) {
+            return true;
+        }
+        if (prefix === "") {
+            return !key.includes(":");
+        }
+        return key.startsWith(prefix + ":");
+    };
+
+    // Copy original meta (only keys matching prefix criteria)
+    for (const [k, v] of Object.entries(meta)) {
+        if (shouldIncludeKey(k)) {
+            rtn[k] = v;
+        }
+    }
+
+    // Deal with "section:*" keys (only if they match prefix criteria)
+    for (const k of Object.keys(metaUpdate)) {
+        if (!k.endsWith(":*")) {
+            continue;
+        }
+
+        if (!metaUpdate[k]) {
+            continue;
+        }
+
+        const sectionPrefix = k.slice(0, -2); // Remove ':*' suffix
+        if (sectionPrefix === "") {
+            continue;
+        }
+
+        // Only process if this section matches our prefix criteria
+        if (!shouldIncludeKey(sectionPrefix)) {
+            continue;
+        }
+
+        // Delete "[sectionPrefix]" and all keys that start with "[sectionPrefix]:"
+        const prefixColon = sectionPrefix + ":";
+        for (const k2 of Object.keys(rtn)) {
+            if (k2 === sectionPrefix || k2.startsWith(prefixColon)) {
+                delete rtn[k2];
+            }
+        }
+    }
+
+    // Deal with regular keys (only if they match prefix criteria)
+    for (const [k, v] of Object.entries(metaUpdate)) {
+        if (!shouldIncludeKey(k)) {
+            continue;
+        }
+
+        if (k.endsWith(":*")) {
+            continue;
+        }
+
+        if (v === null || v === undefined) {
+            delete rtn[k];
+            continue;
+        }
+
+        rtn[k] = v;
+    }
+
+    return rtn;
+}
+
 export {
     atomWithDebounce,
     atomWithThrottle,
@@ -289,6 +407,7 @@ export {
     base64ToString,
     boundNumber,
     countGraphemes,
+    deepCompareReturnPrev,
     fireAndForget,
     getPrefixedSettings,
     getPromiseState,
@@ -300,6 +419,9 @@ export {
     makeConnRoute,
     makeExternLink,
     makeIconClass,
+    makeNativeLabel,
+    mergeMeta,
+    sleep,
     stringToBase64,
     useAtomValueSafe,
 };

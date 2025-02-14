@@ -20,6 +20,9 @@
     "[less]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
+    "[scss]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
     "[css]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
@@ -42,5 +45,8 @@
     },
     "[md]": {
         "editor.wordWrap": "on"
+    },
+    "files.associations": {
+        "*.css": "tailwindcss"
     }
 }

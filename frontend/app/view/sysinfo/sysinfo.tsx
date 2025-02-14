@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { getConnStatusAtom, globalStore, WOS } from "@/store/global";
@@ -91,7 +91,7 @@ function convertWaveEventToDataItem(event: WaveEvent): DataItem {
     return dataItem;
 }
 
-class SysinfoViewModel {
+class SysinfoViewModel implements ViewModel {
     viewType: string;
     blockAtom: jotai.Atom<Block>;
     termMode: jotai.Atom<string>;
@@ -109,6 +109,7 @@ class SysinfoViewModel {
     metrics: jotai.Atom<string[]>;
     connection: jotai.Atom<string>;
     manageConnection: jotai.Atom<boolean>;
+    filterOutNowsh: jotai.Atom<boolean>;
     connStatus: jotai.Atom<ConnStatus>;
     plotMetaAtom: jotai.PrimitiveAtom<Map<string, TimeSeriesMeta>>;
     endIconButtons: jotai.Atom<IconButtonDecl[]>;
@@ -176,6 +177,7 @@ class SysinfoViewModel {
         });
         this.plotMetaAtom = jotai.atom(new Map(Object.entries(DefaultPlotMeta)));
         this.manageConnection = jotai.atom(true);
+        this.filterOutNowsh = jotai.atom(true);
         this.loadingAtom = jotai.atom(true);
         this.numPoints = jotai.atom((get) => {
             const blockData = get(this.blockAtom);
@@ -236,6 +238,10 @@ class SysinfoViewModel {
             const connAtom = getConnStatusAtom(connName);
             return get(connAtom);
         });
+    }
+
+    get viewComponent(): ViewComponent {
+        return SysinfoView;
     }
 
     async loadInitialData() {
@@ -313,11 +319,6 @@ class SysinfoViewModel {
         }
         return points;
     }
-}
-
-function makeSysinfoViewModel(blockId: string, viewType: string): SysinfoViewModel {
-    const sysinfoViewModel = new SysinfoViewModel(blockId, viewType);
-    return sysinfoViewModel;
 }
 
 const plotColors = ["#58C142", "#FFC107", "#FF5722", "#2196F3", "#9C27B0", "#00BCD4", "#FFEB3B", "#795548"];
@@ -445,7 +446,7 @@ function SingleLinePlot({
     );
     if (title) {
         marks.push(
-            Plot.text([yvalMeta.name], {
+            Plot.text([yvalMeta?.name], {
                 frameAnchor: "top-left",
                 dx: 4,
                 fill: "var(--grey-text-color)",
@@ -556,4 +557,4 @@ const SysinfoViewInner = React.memo(({ model }: SysinfoViewProps) => {
     );
 });
 
-export { makeSysinfoViewModel, SysinfoView, SysinfoViewModel };
+export { SysinfoViewModel };

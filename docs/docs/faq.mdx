@@ -6,67 +6,11 @@ title: "FAQ"
 
 # FAQ
 
-### How do I set up my own LLM?
+### How do I configure Wave to use different AI models/providers?
 
-Open your [config file](./config) in Wave using `wsh editconfig` (the config file is normally located
-at `~/.config/waveterm/settings.json`).
+Wave supports various AI providers including local LLMs (via Ollama), Azure OpenAI, Anthropic's Claude, and Perplexity. The recommended way to configure these is through AI presets, which let you set up and easily switch between different providers and models.
 
-| Key Name     | Type   | Function                                        |
-| ------------ | ------ | ----------------------------------------------- |
-| ai:baseurl   | string | Set the AI Base Url (must be OpenAI compatible) |
-| ai:apitoken  | string | your AI api token                               |
-| ai:name      | string | string to display in the Wave AI block header   |
-| ai:model     | string | model name to pass to API                       |
-| ai:maxtokens | int    | max tokens to pass to API                       |
-| ai:timeoutms | int    | timeout (in milliseconds) for AI calls          |
-
-Here's an example of pointing it to a local Ollama instance. Note that to get the text in the header of the AI block
-to update, you'll need to set the "ai:name" key. For ollama, you'll also need to provide something for the
-apitoken (even though it is ignored).
-
-Here are the ollma open AI compatibility docs: https://github.com/ollama/ollama/blob/main/docs/openai.md
-
-```json
-{
-  "ai:*": true,
-  "ai:baseurl": "http://localhost:11434/v1",
-  "ai:name": "llama3.2",
-  "ai:model": "llama3.2",
-  "ai:apitoken": "ollama"
-}
-```
-
-Note: we set the `ai:*` key to true to clear all the existing "ai" keys so this config is a clean slate.
-
-To switch between multiple models, consider [adding AI Presets](./presets) instead.
-
-### How can I connect to Azure AI?
-
-Open your [config file](./config) in Wave using `wsh editconfig` (the config file is normally located
-at `~/.config/waveterm/settings.json`).
-
-You'll need to set your `ai:baseurl` to your Azure AI Base URL (do not include query parameters or `api-version`).
-You'll also need to set `ai:apitype` to `azure`. You can then set the `ai:model`, and `ai:apitoken` appropriately
-for your setup.
-
-### How can I connect to Claude?
-
-Open your [config file](./config) in Wave using `wsh editconfig`.
-
-Set these keys:
-
-```json
-{
-  "ai:*": true,
-  "ai:apitype": "anthropic",
-  "ai:model": "claude-3-5-sonnet-latest",
-  "ai:apitoken": "<your anthropic API key>"
-}
-```
-
-Note: we set the `ai:*` key to true to clear all the existing "ai" keys so this config is a clean slate.
-
-To switch between models, consider [adding AI Presets](./presets) instead.
+See our [AI Presets documentation](/ai-presets) for detailed setup instructions for each provider.
 
 ### How can I see the block numbers?
 
@@ -84,5 +28,32 @@ the location of the Git Bash "bash.exe" binary. By default it is located at "C:\
 Just remember in JSON, backslashes need to be escaped. So add this to your [settings.json](./config) file:
 
 ```json
-    "term:localshellpath": "C:\\Program Files\\Git\\bin\\bash.exe"
+"term:localshellpath": "C:\\Program Files\\Git\\bin\\bash.exe"
+```
+
+### Can I use WSH outside of Wave?
+
+`wsh` is an internal CLI for extending control over Wave to the command line, you can learn more about it [here](./wsh). To prevent misuse by other applications, `wsh` requires an access token provided by Wave to work and will not function outside of the app.
+
+## Why does Wave warn me about ARM64 translation when it launches?
+
+macOS and Windows both have compatibility layers that allow x64 applications to run on ARM computers. This helps more apps run on these systems while developers work to add native ARM support to their applications. However, it comes with significant performance tradeoffs.
+
+To get the best experience using Wave, it is recommended that you uninstall Wave and reinstall the version that is natively compiled for your computer. You can find the right version by consulting our [Installation Instructions](./gettingstarted#installation).
+
+You can disable this warning by setting `app:dismissarchitecturewarning=true` in [your configurations](./config.mdx).
+
+## How do I join the beta builds of Wave?
+
+Wave publishes to two channels, `latest` and `beta`. If you've installed the app for macOS, Windows, or Linux via DEB or RPM, you can set the following configurations in your `settings.json` (see [Configuration](./config) for more info):
+
+```json
+"autoupdate:enabled": true,
+"autoupdate:channel": "beta"
+```
+
+If you've installed via Snap, you can use the following command:
+
+```sh
+sudo snap install waveterm --classic --beta
 ```

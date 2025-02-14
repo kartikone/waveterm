@@ -124,6 +124,10 @@
                     opacity: 0.7;
                     flex-grow: 1;
 
+                    &.flex-nogrow {
+                        flex-grow: 0;
+                    }
+
                     &.preview-filename {
                         direction: rtl;
                         text-align: left;
@@ -162,6 +166,7 @@
                         flex: 1 2 auto;
                         overflow: hidden;
                         padding-right: 4px;
+                        @include mixins.ellipsis();
                     }
 
                     .connecting-svg {
@@ -206,12 +211,12 @@
                             }
                         }
 
-                        .button {
+                        .wave-button {
                             margin-left: 3px;
                         }
 
                         // webview specific. for refresh button
-                        .iconbutton {
+                        .wave-iconbutton {
                             height: 100%;
                             width: 27px;
                             display: flex;
@@ -221,7 +226,7 @@
                     }
 
                     .menubutton {
-                        .button {
+                        .wave-button {
                             font-size: 11px;
                         }
                     }
@@ -231,7 +236,7 @@
                     display: flex;
                     flex-shrink: 0;
 
-                    .iconbutton {
+                    .wave-iconbutton {
                         display: flex;
                         width: 24px;
                         padding: 4px 6px;
@@ -263,7 +268,7 @@
                 align-items: center;
                 justify-content: center;
 
-                .iconbutton {
+                .wave-iconbutton {
                     opacity: 0.7;
                     font-size: 45px;
                     margin: -30px 0 0 0;
@@ -304,7 +309,6 @@
                 width: 100%;
                 font: var(--base-font);
                 color: var(--secondary-text-color);
-                gap: 12px;
 
                 .connstatus-status-icon-wrapper {
                     display: flex;
@@ -333,7 +337,6 @@
                         width: 100%;
 
                         .connstatus-status-text {
-                            @include mixins.ellipsis();
                             max-width: 100%;
                             font-size: 11px;
                             font-style: normal;
@@ -344,13 +347,36 @@
                         }
 
                         .connstatus-error {
-                            @include mixins.ellipsis();
-                            width: 94%;
                             font-size: 11px;
                             font-style: normal;
                             font-weight: 400;
                             line-height: 15px;
                             letter-spacing: 0.11px;
+                            text-wrap: wrap;
+                            max-height: 80px;
+                            border-radius: 8px;
+                            padding: 5px;
+                            padding-left: 0;
+                            position: relative;
+
+                            .copy-button {
+                                visibility: hidden;
+                                display: flex;
+                                position: sticky;
+                                top: 0;
+                                right: 4px;
+                                float: right;
+                                border-radius: 4px;
+                                backdrop-filter: blur(8px);
+                                padding: 0.286em;
+                                align-items: center;
+                                justify-content: flex-end;
+                                gap: 0.286em;
+                            }
+
+                            &:hover .copy-button {
+                                visibility: visible;
+                            }
                         }
                     }
                 }
@@ -368,7 +394,7 @@
                         }
                     }
 
-                    .button:last-child {
+                    .wave-button:last-child {
                         margin-top: 1.5px;
                     }
                 }
@@ -384,7 +410,7 @@
             border: 2px solid transparent;
             pointer-events: none;
             padding: 2px;
-            border-radius: calc(var(--block-border-radius) + 2px);
+            border-radius: var(--block-border-radius);
             z-index: var(--zindex-block-mask-inner);
 
             &.show-block-mask {

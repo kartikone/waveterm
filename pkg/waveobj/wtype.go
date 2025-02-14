@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package waveobj
@@ -167,9 +167,9 @@ type ActiveTabUpdate struct {
 type Workspace struct {
 	OID          string      `json:"oid"`
 	Version      int         `json:"version"`
-	Name         string      `json:"name"`
-	Icon         string      `json:"icon"`
-	Color        string      `json:"color"`
+	Name         string      `json:"name,omitempty"`
+	Icon         string      `json:"icon,omitempty"`
+	Color        string      `json:"color,omitempty"`
 	TabIds       []string    `json:"tabids"`
 	PinnedTabIds []string    `json:"pinnedtabids"`
 	ActiveTabId  string      `json:"activetabid"`
@@ -202,12 +202,15 @@ func (t *Tab) GetBlockORefs() []ORef {
 }
 
 type LayoutActionData struct {
-	ActionType string `json:"actiontype"`
-	BlockId    string `json:"blockid"`
-	NodeSize   *uint  `json:"nodesize,omitempty"`
-	IndexArr   *[]int `json:"indexarr,omitempty"`
-	Focused    bool   `json:"focused"`
-	Magnified  bool   `json:"magnified"`
+	ActionType    string `json:"actiontype"`
+	BlockId       string `json:"blockid"`
+	NodeSize      *uint  `json:"nodesize,omitempty"`
+	IndexArr      *[]int `json:"indexarr,omitempty"`
+	Focused       bool   `json:"focused"`
+	Magnified     bool   `json:"magnified"`
+	Ephemeral     bool   `json:"ephemeral"`
+	TargetBlockId string `json:"targetblockid,omitempty"`
+	Position      string `json:"position,omitempty"`
 }
 
 type LeafOrderEntry struct {
@@ -231,11 +234,8 @@ func (*LayoutState) GetOType() string {
 }
 
 type FileDef struct {
-	FileType string         `json:"filetype,omitempty"`
-	Path     string         `json:"path,omitempty"`
-	Url      string         `json:"url,omitempty"`
-	Content  string         `json:"content,omitempty"`
-	Meta     map[string]any `json:"meta,omitempty"`
+	Content string         `json:"content,omitempty"`
+	Meta    map[string]any `json:"meta,omitempty"`
 }
 
 type BlockDef struct {
@@ -280,7 +280,6 @@ type Block struct {
 	OID         string         `json:"oid"`
 	ParentORef  string         `json:"parentoref,omitempty"`
 	Version     int            `json:"version"`
-	BlockDef    *BlockDef      `json:"blockdef"`
 	RuntimeOpts *RuntimeOpts   `json:"runtimeopts,omitempty"`
 	Stickers    []*StickerType `json:"stickers,omitempty"`
 	Meta        MetaMapType    `json:"meta"`

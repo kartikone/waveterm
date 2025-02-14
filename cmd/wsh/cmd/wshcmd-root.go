@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package cmd
@@ -8,9 +8,9 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
-	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -27,30 +27,69 @@ var (
 )
 
 var WrappedStdin io.Reader = os.Stdin
+var WrappedStdout io.Writer = &WrappedWriter{dest: os.Stdout}
+var WrappedStderr io.Writer = &WrappedWriter{dest: os.Stderr}
 var RpcClient *wshutil.WshRpc
 var RpcContext wshrpc.RpcContext
 var UsingTermWshMode bool
 var blockArg string
 var WshExitCode int
 
-func WriteStderr(fmtStr string, args ...interface{}) {
-	output := fmt.Sprintf(fmtStr, args...)
-	if UsingTermWshMode {
-		output = strings.ReplaceAll(output, "\n", "\r\n")
+type WrappedWriter struct {
+	dest io.Writer
+}
+
+func (w *WrappedWriter) Write(p []byte) (n int, err error) {
+	if !UsingTermWshMode {
+		return w.dest.Write(p)
 	}
-	fmt.Fprint(os.Stderr, output)
+	count := 0
+	for _, b := range p {
+		if b == '\n' {
+			count++
+		}
+	}
+	if count == 0 {
+		return w.dest.Write(p)
+	}
+	buf := make([]byte, len(p)+count) // Each '\n' adds one extra byte for '\r'
+	writeIdx := 0
+	for _, b := range p {
+		if b == '\n' {
+			buf[writeIdx] = '\r'
+			buf[writeIdx+1] = '\n'
+			writeIdx += 2
+		} else {
+			buf[writeIdx] = b
+			writeIdx++
+		}
+	}
+	return w.dest.Write(buf)
+}
+
+func WriteStderr(fmtStr string, args ...interface{}) {
+	WrappedStderr.Write([]byte(fmt.Sprintf(fmtStr, args...)))
 }
 
 func WriteStdout(fmtStr string, args ...interface{}) {
-	output := fmt.Sprintf(fmtStr, args...)
-	if UsingTermWshMode {
-		output = strings.ReplaceAll(output, "\n", "\r\n")
-	}
-	fmt.Print(output)
+	WrappedStdout.Write([]byte(fmt.Sprintf(fmtStr, args...)))
+}
+
+func OutputHelpMessage(cmd *cobra.Command) {
+	cmd.SetOutput(WrappedStderr)
+	cmd.Help()
+	WriteStderr("\n")
 }
 
 func preRunSetupRpcClient(cmd *cobra.Command, args []string) error {
-	err := setupRpcClient(nil)
+	jwtToken := os.Getenv(wshutil.WaveJwtTokenVarName)
+	if jwtToken == "" {
+		wshutil.SetTermRawModeAndInstallShutdownHandlers(true)
+		UsingTermWshMode = true
+		RpcClient, WrappedStdin = wshutil.SetupTerminalRpcClient(nil, "wshcmd-termclient")
+		return nil
+	}
+	err := setupRpcClient(nil, jwtToken)
 	if err != nil {
 		return err
 	}
@@ -62,6 +101,15 @@ func getIsTty() bool {
 		return true
 	}
 	return false
+}
+
+func getThisBlockMeta() (waveobj.MetaMapType, error) {
+	blockORef := waveobj.ORef{OType: waveobj.OType_Block, OID: RpcContext.BlockId}
+	resp, err := wshclient.GetMetaCommand(RpcClient, wshrpc.CommandGetMetaData{ORef: blockORef}, &wshrpc.RpcOpts{Timeout: 2000})
+	if err != nil {
+		return nil, fmt.Errorf("getting metadata: %w", err)
+	}
+	return resp, nil
 }
 
 type RunEFnType = func(*cobra.Command, []string) error
@@ -87,15 +135,28 @@ func resolveBlockArg() (*waveobj.ORef, error) {
 	return fullORef, nil
 }
 
-// returns the wrapped stdin and a new rpc client (that wraps the stdin input and stdout output)
-func setupRpcClient(serverImpl wshutil.ServerImpl) error {
-	jwtToken := os.Getenv(wshutil.WaveJwtTokenVarName)
-	if jwtToken == "" {
-		wshutil.SetTermRawModeAndInstallShutdownHandlers(true)
-		UsingTermWshMode = true
-		RpcClient, WrappedStdin = wshutil.SetupTerminalRpcClient(serverImpl)
-		return nil
+func setupRpcClientWithToken(swapTokenStr string) (wshrpc.CommandAuthenticateRtnData, error) {
+	var rtn wshrpc.CommandAuthenticateRtnData
+	token, err := shellutil.UnpackSwapToken(swapTokenStr)
+	if err != nil {
+		return rtn, fmt.Errorf("error unpacking token: %w", err)
 	}
+	if token.SockName == "" {
+		return rtn, fmt.Errorf("no sockname in token")
+	}
+	if token.RpcContext == nil {
+		return rtn, fmt.Errorf("no rpccontext in token")
+	}
+	RpcContext = *token.RpcContext
+	RpcClient, err = wshutil.SetupDomainSocketRpcClient(token.SockName, nil, "wshcmd")
+	if err != nil {
+		return rtn, fmt.Errorf("error setting up domain socket rpc client: %w", err)
+	}
+	return wshclient.AuthenticateTokenCommand(RpcClient, wshrpc.CommandAuthenticateTokenData{Token: token.Token}, nil)
+}
+
+// returns the wrapped stdin and a new rpc client (that wraps the stdin input and stdout output)
+func setupRpcClient(serverImpl wshutil.ServerImpl, jwtToken string) error {
 	rpcCtx, err := wshutil.ExtractUnverifiedRpcContext(jwtToken)
 	if err != nil {
 		return fmt.Errorf("error extracting rpc context from %s: %v", wshutil.WaveJwtTokenVarName, err)
@@ -105,7 +166,7 @@ func setupRpcClient(serverImpl wshutil.ServerImpl) error {
 	if err != nil {
 		return fmt.Errorf("error extracting socket name from %s: %v", wshutil.WaveJwtTokenVarName, err)
 	}
-	RpcClient, err = wshutil.SetupDomainSocketRpcClient(sockName, serverImpl)
+	RpcClient, err = wshutil.SetupDomainSocketRpcClient(sockName, serverImpl, "wshcmd")
 	if err != nil {
 		return fmt.Errorf("error setting up domain socket rpc client: %v", err)
 	}

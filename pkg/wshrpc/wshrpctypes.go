@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // types and methods for wsh rpc calls
@@ -12,11 +12,24 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/ijson"
+	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
+	"github.com/wavetermdev/waveterm/pkg/util/iochan/iochantypes"
 	"github.com/wavetermdev/waveterm/pkg/vdom"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
+)
+
+const (
+	// MaxFileSize is the maximum file size that can be read
+	MaxFileSize = 50 * 1024 * 1024 // 50M
+	// MaxDirSize is the maximum number of entries that can be read in a directory
+	MaxDirSize = 1024
+	// FileChunkSize is the size of the file chunk to read
+	FileChunkSize = 64 * 1024
+	// DirChunkSize is the size of the directory chunk to read
+	DirChunkSize = 128
 )
 
 const LocalConnName = "local"
@@ -29,48 +42,69 @@ const (
 )
 
 const (
-	Command_Authenticate      = "authenticate"    // special
-	Command_Dispose           = "dispose"         // special (disposes of the route, for multiproxy only)
-	Command_RouteAnnounce     = "routeannounce"   // special (for routing)
-	Command_RouteUnannounce   = "routeunannounce" // special (for routing)
-	Command_Message           = "message"
-	Command_GetMeta           = "getmeta"
-	Command_SetMeta           = "setmeta"
-	Command_SetView           = "setview"
-	Command_ControllerInput   = "controllerinput"
-	Command_ControllerRestart = "controllerrestart"
-	Command_ControllerStop    = "controllerstop"
-	Command_ControllerResync  = "controllerresync"
-	Command_FileAppend        = "fileappend"
-	Command_FileAppendIJson   = "fileappendijson"
-	Command_ResolveIds        = "resolveids"
-	Command_BlockInfo         = "blockinfo"
-	Command_CreateBlock       = "createblock"
-	Command_DeleteBlock       = "deleteblock"
-	Command_FileWrite         = "filewrite"
-	Command_FileRead          = "fileread"
-	Command_EventPublish      = "eventpublish"
-	Command_EventRecv         = "eventrecv"
-	Command_EventSub          = "eventsub"
-	Command_EventUnsub        = "eventunsub"
-	Command_EventUnsubAll     = "eventunsuball"
-	Command_EventReadHistory  = "eventreadhistory"
-	Command_StreamTest        = "streamtest"
-	Command_StreamWaveAi      = "streamwaveai"
-	Command_StreamCpuData     = "streamcpudata"
-	Command_Test              = "test"
-	Command_RemoteStreamFile  = "remotestreamfile"
-	Command_RemoteFileInfo    = "remotefileinfo"
-	Command_RemoteFileTouch   = "remotefiletouch"
-	Command_RemoteWriteFile   = "remotewritefile"
-	Command_RemoteFileDelete  = "remotefiledelete"
-	Command_RemoteFileJoin    = "remotefilejoin"
-	Command_WaveInfo          = "waveinfo"
-	Command_WshActivity       = "wshactivity"
-	Command_Activity          = "activity"
-	Command_GetVar            = "getvar"
-	Command_SetVar            = "setvar"
-	Command_RemoteMkdir       = "remotemkdir"
+	CreateBlockAction_Replace    = "replace"
+	CreateBlockAction_SplitUp    = "splitup"
+	CreateBlockAction_SplitDown  = "splitdown"
+	CreateBlockAction_SplitLeft  = "splitleft"
+	CreateBlockAction_SplitRight = "splitright"
+)
+
+// TODO generate these constants from the interface
+const (
+	Command_Authenticate         = "authenticate"      // special
+	Command_AuthenticateToken    = "authenticatetoken" // special
+	Command_Dispose              = "dispose"           // special (disposes of the route, for multiproxy only)
+	Command_RouteAnnounce        = "routeannounce"     // special (for routing)
+	Command_RouteUnannounce      = "routeunannounce"   // special (for routing)
+	Command_Message              = "message"
+	Command_GetMeta              = "getmeta"
+	Command_SetMeta              = "setmeta"
+	Command_SetView              = "setview"
+	Command_ControllerInput      = "controllerinput"
+	Command_ControllerRestart    = "controllerrestart"
+	Command_ControllerStop       = "controllerstop"
+	Command_ControllerResync     = "controllerresync"
+	Command_FileAppend           = "fileappend"
+	Command_FileAppendIJson      = "fileappendijson"
+	Command_Mkdir                = "mkdir"
+	Command_ResolveIds           = "resolveids"
+	Command_BlockInfo            = "blockinfo"
+	Command_CreateBlock          = "createblock"
+	Command_DeleteBlock          = "deleteblock"
+	Command_FileWrite            = "filewrite"
+	Command_FileRead             = "fileread"
+	Command_FileMove             = "filemove"
+	Command_FileCopy             = "filecopy"
+	Command_FileStreamTar        = "filestreamtar"
+	Command_EventPublish         = "eventpublish"
+	Command_EventRecv            = "eventrecv"
+	Command_EventSub             = "eventsub"
+	Command_EventUnsub           = "eventunsub"
+	Command_EventUnsubAll        = "eventunsuball"
+	Command_EventReadHistory     = "eventreadhistory"
+	Command_StreamTest           = "streamtest"
+	Command_StreamWaveAi         = "streamwaveai"
+	Command_StreamCpuData        = "streamcpudata"
+	Command_Test                 = "test"
+	Command_SetConfig            = "setconfig"
+	Command_SetConnectionsConfig = "connectionsconfig"
+	Command_GetFullConfig        = "getfullconfig"
+	Command_RemoteStreamFile     = "remotestreamfile"
+	Command_RemoteTarStream      = "remotetarstream"
+	Command_RemoteFileInfo       = "remotefileinfo"
+	Command_RemoteFileTouch      = "remotefiletouch"
+	Command_RemoteWriteFile      = "remotewritefile"
+
+	Command_RemoteFileDelete     = "remotefiledelete"
+	Command_RemoteFileJoin       = "remotefilejoin"
+	Command_WaveInfo             = "waveinfo"
+	Command_WshActivity          = "wshactivity"
+	Command_Activity             = "activity"
+	Command_GetVar               = "getvar"
+	Command_SetVar               = "setvar"
+	Command_RemoteMkdir          = "remotemkdir"
+	Command_RemoteGetInfo        = "remotegetinfo"
+	Command_RemoteInstallRcfiles = "remoteinstallrcfiles"
 
 	Command_ConnStatus       = "connstatus"
 	Command_WslStatus        = "wslstatus"
@@ -81,6 +115,8 @@ const (
 	Command_ConnList         = "connlist"
 	Command_WslList          = "wsllist"
 	Command_WslDefaultDistro = "wsldefaultdistro"
+	Command_DismissWshFail   = "dismisswshfail"
+	Command_ConnUpdateWsh    = "updatewsh"
 
 	Command_WorkspaceList = "workspacelist"
 
@@ -104,6 +140,7 @@ type RespOrErrorUnion[T any] struct {
 
 type WshRpcInterface interface {
 	AuthenticateCommand(ctx context.Context, data string) (CommandAuthenticateRtnData, error)
+	AuthenticateTokenCommand(ctx context.Context, data CommandAuthenticateTokenData) (CommandAuthenticateRtnData, error)
 	DisposeCommand(ctx context.Context, data CommandDisposeData) error
 	RouteAnnounceCommand(ctx context.Context) error   // (special) announces a new route to the main router
 	RouteUnannounceCommand(ctx context.Context) error // (special) unannounces a route to the main router
@@ -115,61 +152,80 @@ type WshRpcInterface interface {
 	ControllerInputCommand(ctx context.Context, data CommandBlockInputData) error
 	ControllerStopCommand(ctx context.Context, blockId string) error
 	ControllerResyncCommand(ctx context.Context, data CommandControllerResyncData) error
+	ControllerAppendOutputCommand(ctx context.Context, data CommandControllerAppendOutputData) error
 	ResolveIdsCommand(ctx context.Context, data CommandResolveIdsData) (CommandResolveIdsRtnData, error)
 	CreateBlockCommand(ctx context.Context, data CommandCreateBlockData) (waveobj.ORef, error)
 	CreateSubBlockCommand(ctx context.Context, data CommandCreateSubBlockData) (waveobj.ORef, error)
 	DeleteBlockCommand(ctx context.Context, data CommandDeleteBlockData) error
 	DeleteSubBlockCommand(ctx context.Context, data CommandDeleteBlockData) error
 	WaitForRouteCommand(ctx context.Context, data CommandWaitForRouteData) (bool, error)
-	FileCreateCommand(ctx context.Context, data CommandFileCreateData) error
-	FileDeleteCommand(ctx context.Context, data CommandFileData) error
-	FileAppendCommand(ctx context.Context, data CommandFileData) error
+	FileMkdirCommand(ctx context.Context, data FileData) error
+	FileCreateCommand(ctx context.Context, data FileData) error
+	FileDeleteCommand(ctx context.Context, data CommandDeleteFileData) error
+	FileAppendCommand(ctx context.Context, data FileData) error
 	FileAppendIJsonCommand(ctx context.Context, data CommandAppendIJsonData) error
-	FileWriteCommand(ctx context.Context, data CommandFileData) error
-	FileReadCommand(ctx context.Context, data CommandFileData) (string, error)
-	FileInfoCommand(ctx context.Context, data CommandFileData) (*WaveFileInfo, error)
-	FileListCommand(ctx context.Context, data CommandFileListData) ([]*WaveFileInfo, error)
+	FileWriteCommand(ctx context.Context, data FileData) error
+	FileReadCommand(ctx context.Context, data FileData) (*FileData, error)
+	FileStreamTarCommand(ctx context.Context, data CommandRemoteStreamTarData) <-chan RespOrErrorUnion[iochantypes.Packet]
+	FileMoveCommand(ctx context.Context, data CommandFileCopyData) error
+	FileCopyCommand(ctx context.Context, data CommandFileCopyData) error
+	FileInfoCommand(ctx context.Context, data FileData) (*FileInfo, error)
+	FileListCommand(ctx context.Context, data FileListData) ([]*FileInfo, error)
+	FileListStreamCommand(ctx context.Context, data FileListData) <-chan RespOrErrorUnion[CommandRemoteListEntriesRtnData]
 	EventPublishCommand(ctx context.Context, data wps.WaveEvent) error
 	EventSubCommand(ctx context.Context, data wps.SubscriptionRequest) error
 	EventUnsubCommand(ctx context.Context, data string) error
 	EventUnsubAllCommand(ctx context.Context) error
 	EventReadHistoryCommand(ctx context.Context, data CommandEventReadHistoryData) ([]*wps.WaveEvent, error)
 	StreamTestCommand(ctx context.Context) chan RespOrErrorUnion[int]
-	StreamWaveAiCommand(ctx context.Context, request OpenAiStreamRequest) chan RespOrErrorUnion[OpenAIPacketType]
+	StreamWaveAiCommand(ctx context.Context, request WaveAIStreamRequest) chan RespOrErrorUnion[WaveAIPacketType]
 	StreamCpuDataCommand(ctx context.Context, request CpuDataRequest) chan RespOrErrorUnion[TimeSeriesData]
 	TestCommand(ctx context.Context, data string) error
 	SetConfigCommand(ctx context.Context, data MetaSettingsType) error
+	SetConnectionsConfigCommand(ctx context.Context, data ConnConfigRequest) error
+	GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error)
 	BlockInfoCommand(ctx context.Context, blockId string) (*BlockInfoData, error)
 	WaveInfoCommand(ctx context.Context) (*WaveInfoData, error)
 	WshActivityCommand(ct context.Context, data map[string]int) error
 	ActivityCommand(ctx context.Context, data ActivityUpdate) error
+	RecordTEventCommand(ctx context.Context, data telemetrydata.TEvent) error
 	GetVarCommand(ctx context.Context, data CommandVarData) (*CommandVarResponseData, error)
 	SetVarCommand(ctx context.Context, data CommandVarData) error
+	PathCommand(ctx context.Context, data PathCommandData) (string, error)
+	SendTelemetryCommand(ctx context.Context) error
+	FetchSuggestionsCommand(ctx context.Context, data FetchSuggestionsData) (*FetchSuggestionsResponse, error)
 
 	// connection functions
 	ConnStatusCommand(ctx context.Context) ([]ConnStatus, error)
 	WslStatusCommand(ctx context.Context) ([]ConnStatus, error)
-	ConnEnsureCommand(ctx context.Context, connName string) error
-	ConnReinstallWshCommand(ctx context.Context, connName string) error
+	ConnEnsureCommand(ctx context.Context, data ConnExtData) error
+	ConnReinstallWshCommand(ctx context.Context, data ConnExtData) error
 	ConnConnectCommand(ctx context.Context, connRequest ConnRequest) error
 	ConnDisconnectCommand(ctx context.Context, connName string) error
 	ConnListCommand(ctx context.Context) ([]string, error)
 	WslListCommand(ctx context.Context) ([]string, error)
 	WslDefaultDistroCommand(ctx context.Context) (string, error)
+	DismissWshFailCommand(ctx context.Context, connName string) error
+	ConnUpdateWshCommand(ctx context.Context, remoteInfo RemoteInfo) (bool, error)
 
 	// eventrecv is special, it's handled internally by WshRpc with EventListener
 	EventRecvCommand(ctx context.Context, data wps.WaveEvent) error
 
 	// remotes
-	RemoteStreamFileCommand(ctx context.Context, data CommandRemoteStreamFileData) chan RespOrErrorUnion[CommandRemoteStreamFileRtnData]
+	RemoteStreamFileCommand(ctx context.Context, data CommandRemoteStreamFileData) chan RespOrErrorUnion[FileData]
+	RemoteTarStreamCommand(ctx context.Context, data CommandRemoteStreamTarData) <-chan RespOrErrorUnion[iochantypes.Packet]
+	RemoteFileCopyCommand(ctx context.Context, data CommandRemoteFileCopyData) error
+	RemoteListEntriesCommand(ctx context.Context, data CommandRemoteListEntriesData) chan RespOrErrorUnion[CommandRemoteListEntriesRtnData]
 	RemoteFileInfoCommand(ctx context.Context, path string) (*FileInfo, error)
 	RemoteFileTouchCommand(ctx context.Context, path string) error
-	RemoteFileRenameCommand(ctx context.Context, pathTuple [2]string) error
-	RemoteFileDeleteCommand(ctx context.Context, path string) error
-	RemoteWriteFileCommand(ctx context.Context, data CommandRemoteWriteFileData) error
+	RemoteFileMoveCommand(ctx context.Context, data CommandRemoteFileCopyData) error
+	RemoteFileDeleteCommand(ctx context.Context, data CommandDeleteFileData) error
+	RemoteWriteFileCommand(ctx context.Context, data FileData) error
 	RemoteFileJoinCommand(ctx context.Context, paths []string) (*FileInfo, error)
 	RemoteMkdirCommand(ctx context.Context, path string) error
 	RemoteStreamCpuDataCommand(ctx context.Context) chan RespOrErrorUnion[TimeSeriesData]
+	RemoteGetInfoCommand(ctx context.Context) (RemoteInfo, error)
+	RemoteInstallRcFilesCommand(ctx context.Context) error
 
 	// emain
 	WebSelectorCommand(ctx context.Context, data CommandWebSelectorData) ([]string, error)
@@ -197,7 +253,7 @@ type WshServerCommandMeta struct {
 }
 
 type RpcOpts struct {
-	Timeout    int    `json:"timeout,omitempty"`
+	Timeout    int64  `json:"timeout,omitempty"`
 	NoResponse bool   `json:"noresponse,omitempty"`
 	Route      string `json:"route,omitempty"`
 
@@ -250,6 +306,14 @@ func HackRpcContextIntoData(dataPtr any, rpcContext RpcContext) {
 type CommandAuthenticateRtnData struct {
 	RouteId   string `json:"routeid"`
 	AuthToken string `json:"authtoken,omitempty"`
+
+	// these fields are only set when doing a token swap
+	Env            map[string]string `json:"env,omitempty"`
+	InitScriptText string            `json:"initscripttext,omitempty"`
+}
+
+type CommandAuthenticateTokenData struct {
+	Token string `json:"token"`
 }
 
 type CommandDisposeData struct {
@@ -281,10 +345,13 @@ type CommandResolveIdsRtnData struct {
 }
 
 type CommandCreateBlockData struct {
-	TabId     string               `json:"tabid" wshcontext:"TabId"`
-	BlockDef  *waveobj.BlockDef    `json:"blockdef"`
-	RtOpts    *waveobj.RuntimeOpts `json:"rtopts,omitempty"`
-	Magnified bool                 `json:"magnified,omitempty"`
+	TabId         string               `json:"tabid" wshcontext:"TabId"`
+	BlockDef      *waveobj.BlockDef    `json:"blockdef"`
+	RtOpts        *waveobj.RuntimeOpts `json:"rtopts,omitempty"`
+	Magnified     bool                 `json:"magnified,omitempty"`
+	Ephemeral     bool                 `json:"ephemeral,omitempty"`
+	TargetBlockId string               `json:"targetblockid,omitempty"`
+	TargetAction  string               `json:"targetaction,omitempty"` // "replace", "splitright", "splitdown", "splitleft", "splitup"
 }
 
 type CommandCreateSubBlockData struct {
@@ -304,6 +371,11 @@ type CommandControllerResyncData struct {
 	RtOpts       *waveobj.RuntimeOpts `json:"rtopts,omitempty"`
 }
 
+type CommandControllerAppendOutputData struct {
+	BlockId string `json:"blockid"`
+	Data64  string `json:"data64"`
+}
+
 type CommandBlockInputData struct {
 	BlockId     string            `json:"blockid" wshcontext:"BlockId"`
 	InputData64 string            `json:"inputdata64,omitempty"`
@@ -311,42 +383,63 @@ type CommandBlockInputData struct {
 	TermSize    *waveobj.TermSize `json:"termsize,omitempty"`
 }
 
-type CommandFileDataAt struct {
+type FileDataAt struct {
 	Offset int64 `json:"offset"`
-	Size   int64 `json:"size,omitempty"`
+	Size   int   `json:"size,omitempty"`
 }
 
-type CommandFileData struct {
-	ZoneId   string             `json:"zoneid" wshcontext:"BlockId"`
-	FileName string             `json:"filename"`
-	Data64   string             `json:"data64,omitempty"`
-	At       *CommandFileDataAt `json:"at,omitempty"` // if set, this turns read/write ops to ReadAt/WriteAt ops (len is only used for ReadAt)
+type FileData struct {
+	Info    *FileInfo   `json:"info,omitempty"`
+	Data64  string      `json:"data64,omitempty"`
+	Entries []*FileInfo `json:"entries,omitempty"`
+	At      *FileDataAt `json:"at,omitempty"` // if set, this turns read/write ops to ReadAt/WriteAt ops (len is only used for ReadAt)
 }
 
-type WaveFileInfo struct {
-	ZoneId    string                 `json:"zoneid"`
-	Name      string                 `json:"name"`
-	Opts      filestore.FileOptsType `json:"opts,omitempty"`
-	Size      int64                  `json:"size,omitempty"`
-	CreatedTs int64                  `json:"createdts,omitempty"`
-	ModTs     int64                  `json:"modts,omitempty"`
-	Meta      map[string]any         `json:"meta,omitempty"`
-	IsDir     bool                   `json:"isdir,omitempty"`
+type FileInfo struct {
+	Path          string      `json:"path"`          // cleaned path (may have "~")
+	Dir           string      `json:"dir,omitempty"` // returns the directory part of the path (if this is a a directory, it will be equal to Path).  "~" will be expanded, and separators will be normalized to "/"
+	Name          string      `json:"name,omitempty"`
+	NotFound      bool        `json:"notfound,omitempty"`
+	Opts          *FileOpts   `json:"opts,omitempty"`
+	Size          int64       `json:"size,omitempty"`
+	Meta          *FileMeta   `json:"meta,omitempty"`
+	Mode          os.FileMode `json:"mode,omitempty"`
+	ModeStr       string      `json:"modestr,omitempty"`
+	ModTime       int64       `json:"modtime,omitempty"`
+	IsDir         bool        `json:"isdir,omitempty"`
+	SupportsMkdir bool        `json:"supportsmkdir,omitempty"`
+	MimeType      string      `json:"mimetype,omitempty"`
+	ReadOnly      bool        `json:"readonly,omitempty"` // this is not set for fileinfo's returned from directory listings
 }
 
-type CommandFileListData struct {
-	ZoneId string `json:"zoneid"`
-	Prefix string `json:"prefix,omitempty"`
-	All    bool   `json:"all,omitempty"`
-	Offset int    `json:"offset,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
+type FileOpts struct {
+	MaxSize     int64 `json:"maxsize,omitempty"`
+	Circular    bool  `json:"circular,omitempty"`
+	IJson       bool  `json:"ijson,omitempty"`
+	IJsonBudget int   `json:"ijsonbudget,omitempty"`
+	Truncate    bool  `json:"truncate,omitempty"`
+	Append      bool  `json:"append,omitempty"`
 }
 
-type CommandFileCreateData struct {
-	ZoneId   string                  `json:"zoneid"`
-	FileName string                  `json:"filename"`
-	Meta     map[string]any          `json:"meta,omitempty"`
-	Opts     *filestore.FileOptsType `json:"opts,omitempty"`
+type FileMeta = map[string]any
+
+type FileListStreamResponse <-chan RespOrErrorUnion[CommandRemoteListEntriesRtnData]
+
+type FileListData struct {
+	Path string        `json:"path"`
+	Opts *FileListOpts `json:"opts,omitempty"`
+}
+
+type FileListOpts struct {
+	All    bool `json:"all,omitempty"`
+	Offset int  `json:"offset,omitempty"`
+	Limit  int  `json:"limit,omitempty"`
+}
+
+type FileCreateData struct {
+	Path string         `json:"path"`
+	Meta map[string]any `json:"meta,omitempty"`
+	Opts *FileOpts      `json:"opts,omitempty"`
 }
 
 type CommandAppendIJsonData struct {
@@ -370,19 +463,19 @@ type CommandEventReadHistoryData struct {
 	MaxItems int    `json:"maxitems"`
 }
 
-type OpenAiStreamRequest struct {
+type WaveAIStreamRequest struct {
 	ClientId string                    `json:"clientid,omitempty"`
-	Opts     *OpenAIOptsType           `json:"opts"`
-	Prompt   []OpenAIPromptMessageType `json:"prompt"`
+	Opts     *WaveAIOptsType           `json:"opts"`
+	Prompt   []WaveAIPromptMessageType `json:"prompt"`
 }
 
-type OpenAIPromptMessageType struct {
+type WaveAIPromptMessageType struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 	Name    string `json:"name,omitempty"`
 }
 
-type OpenAIOptsType struct {
+type WaveAIOptsType struct {
 	Model      string `json:"model"`
 	APIType    string `json:"apitype,omitempty"`
 	APIToken   string `json:"apitoken"`
@@ -394,18 +487,18 @@ type OpenAIOptsType struct {
 	TimeoutMs  int    `json:"timeoutms,omitempty"`
 }
 
-type OpenAIPacketType struct {
+type WaveAIPacketType struct {
 	Type         string           `json:"type"`
 	Model        string           `json:"model,omitempty"`
 	Created      int64            `json:"created,omitempty"`
 	FinishReason string           `json:"finish_reason,omitempty"`
-	Usage        *OpenAIUsageType `json:"usage,omitempty"`
+	Usage        *WaveAIUsageType `json:"usage,omitempty"`
 	Index        int              `json:"index,omitempty"`
 	Text         string           `json:"text,omitempty"`
 	Error        string           `json:"error,omitempty"`
 }
 
-type OpenAIUsageType struct {
+type WaveAIUsageType struct {
 	PromptTokens     int `json:"prompt_tokens,omitempty"`
 	CompletionTokens int `json:"completion_tokens,omitempty"`
 	TotalTokens      int `json:"total_tokens,omitempty"`
@@ -421,18 +514,33 @@ type CpuDataType struct {
 	Value float64 `json:"value"`
 }
 
-type FileInfo struct {
-	Path     string      `json:"path"` // cleaned path (may have "~")
-	Dir      string      `json:"dir"`  // returns the directory part of the path (if this is a a directory, it will be equal to Path).  "~" will be expanded, and separators will be normalized to "/"
-	Name     string      `json:"name"`
-	NotFound bool        `json:"notfound,omitempty"`
-	Size     int64       `json:"size"`
-	Mode     os.FileMode `json:"mode"`
-	ModeStr  string      `json:"modestr"`
-	ModTime  int64       `json:"modtime"`
-	IsDir    bool        `json:"isdir,omitempty"`
-	MimeType string      `json:"mimetype,omitempty"`
-	ReadOnly bool        `json:"readonly,omitempty"` // this is not set for fileinfo's returned from directory listings
+type CommandDeleteFileData struct {
+	Path      string `json:"path"`
+	Recursive bool   `json:"recursive"`
+}
+
+type CommandFileCopyData struct {
+	SrcUri  string        `json:"srcuri"`
+	DestUri string        `json:"desturi"`
+	Opts    *FileCopyOpts `json:"opts,omitempty"`
+}
+
+type CommandRemoteFileCopyData struct {
+	SrcUri  string        `json:"srcuri"`
+	DestUri string        `json:"desturi"`
+	Opts    *FileCopyOpts `json:"opts,omitempty"`
+}
+
+type CommandRemoteStreamTarData struct {
+	Path string        `json:"path"`
+	Opts *FileCopyOpts `json:"opts,omitempty"`
+}
+
+type FileCopyOpts struct {
+	Overwrite bool  `json:"overwrite,omitempty"`
+	Recursive bool  `json:"recursive,omitempty"`
+	Merge     bool  `json:"merge,omitempty"`
+	Timeout   int64 `json:"timeout,omitempty"`
 }
 
 type CommandRemoteStreamFileData struct {
@@ -440,40 +548,26 @@ type CommandRemoteStreamFileData struct {
 	ByteRange string `json:"byterange,omitempty"`
 }
 
-type CommandRemoteStreamFileRtnData struct {
+type CommandRemoteListEntriesData struct {
+	Path string        `json:"path"`
+	Opts *FileListOpts `json:"opts,omitempty"`
+}
+
+type CommandRemoteListEntriesRtnData struct {
 	FileInfo []*FileInfo `json:"fileinfo,omitempty"`
-	Data64   string      `json:"data64,omitempty"`
-}
-
-type CommandRemoteWriteFileData struct {
-	Path       string      `json:"path"`
-	Data64     string      `json:"data64"`
-	CreateMode os.FileMode `json:"createmode,omitempty"`
-}
-
-type ConnKeywords struct {
-	WshEnabled          *bool `json:"wshenabled,omitempty"`
-	AskBeforeWshInstall *bool `json:"askbeforewshinstall,omitempty"`
-
-	SshUser                         string   `json:"ssh:user,omitempty"`
-	SshHostName                     string   `json:"ssh:hostname,omitempty"`
-	SshPort                         string   `json:"ssh:port,omitempty"`
-	SshIdentityFile                 []string `json:"ssh:identityfile,omitempty"`
-	SshBatchMode                    bool     `json:"ssh:batchmode,omitempty"`
-	SshPubkeyAuthentication         bool     `json:"ssh:pubkeyauthentication,omitempty"`
-	SshPasswordAuthentication       bool     `json:"ssh:passwordauthentication,omitempty"`
-	SshKbdInteractiveAuthentication bool     `json:"ssh:kbdinteractiveauthentication,omitempty"`
-	SshPreferredAuthentications     []string `json:"ssh:preferredauthentications,omitempty"`
-	SshAddKeysToAgent               bool     `json:"ssh:addkeystoagent,omitempty"`
-	SshIdentityAgent                string   `json:"ssh:identityagent,omitempty"`
-	SshProxyJump                    []string `json:"ssh:proxyjump,omitempty"`
-	SshUserKnownHostsFile           []string `json:"ssh:userknownhostsfile,omitempty"`
-	SshGlobalKnownHostsFile         []string `json:"ssh:globalknownhostsfile,omitempty"`
 }
 
 type ConnRequest struct {
-	Host     string       `json:"host"`
-	Keywords ConnKeywords `json:"keywords,omitempty"`
+	Host       string               `json:"host"`
+	Keywords   wconfig.ConnKeywords `json:"keywords,omitempty"`
+	LogBlockId string               `json:"logblockid,omitempty"`
+}
+
+type RemoteInfo struct {
+	ClientArch    string `json:"clientarch"`
+	ClientOs      string `json:"clientos"`
+	ClientVersion string `json:"clientversion"`
+	Shell         string `json:"shell"`
 }
 
 const (
@@ -504,6 +598,11 @@ func (m MetaSettingsType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(m.MetaMapType)
 }
 
+type ConnConfigRequest struct {
+	Host        string              `json:"host"`
+	MetaMapType waveobj.MetaMapType `json:"metamaptype"`
+}
+
 type ConnStatus struct {
 	Status        string `json:"status"`
 	WshEnabled    bool   `json:"wshenabled"`
@@ -512,6 +611,9 @@ type ConnStatus struct {
 	HasConnected  bool   `json:"hasconnected"` // true if it has *ever* connected successfully
 	ActiveConnNum int    `json:"activeconnnum"`
 	Error         string `json:"error,omitempty"`
+	WshError      string `json:"wsherror,omitempty"`
+	NoWshReason   string `json:"nowshreason,omitempty"`
+	WshVersion    string `json:"wshversion,omitempty"`
 }
 
 type WebSelectorOpts struct {
@@ -532,6 +634,7 @@ type BlockInfoData struct {
 	TabId       string         `json:"tabid"`
 	WorkspaceId string         `json:"workspaceid"`
 	Block       *waveobj.Block `json:"block"`
+	Files       []*FileInfo    `json:"files"`
 }
 
 type WaveNotificationOptions struct {
@@ -584,6 +687,13 @@ type CommandVarResponseData struct {
 	Exists bool   `json:"exists"`
 }
 
+type PathCommandData struct {
+	PathType     string `json:"pathtype"`
+	Open         bool   `json:"open"`
+	OpenExternal bool   `json:"openexternal"`
+	TabId        string `json:"tabid" wshcontext:"TabId"`
+}
+
 type ActivityDisplayType struct {
 	Width    int     `json:"width"`
 	Height   int     `json:"height"`
@@ -599,10 +709,13 @@ type ActivityUpdate struct {
 	NewTab        int                   `json:"newtab,omitempty"`
 	NumBlocks     int                   `json:"numblocks,omitempty"`
 	NumWindows    int                   `json:"numwindows,omitempty"`
+	NumWS         int                   `json:"numws,omitempty"`
+	NumWSNamed    int                   `json:"numwsnamed,omitempty"`
 	NumSSHConn    int                   `json:"numsshconn,omitempty"`
 	NumWSLConn    int                   `json:"numwslconn,omitempty"`
 	NumMagnify    int                   `json:"nummagnify,omitempty"`
 	NumPanics     int                   `json:"numpanics,omitempty"`
+	NumAIReqs     int                   `json:"numaireqs,omitempty"`
 	Startup       int                   `json:"startup,omitempty"`
 	Shutdown      int                   `json:"shutdown,omitempty"`
 	SetTabTheme   int                   `json:"settabtheme,omitempty"`
@@ -612,4 +725,41 @@ type ActivityUpdate struct {
 	Blocks        map[string]int        `json:"blocks,omitempty"`
 	WshCmds       map[string]int        `json:"wshcmds,omitempty"`
 	Conn          map[string]int        `json:"conn,omitempty"`
+}
+
+type ConnExtData struct {
+	ConnName   string `json:"connname"`
+	LogBlockId string `json:"logblockid,omitempty"`
+}
+
+type FetchSuggestionsData struct {
+	SuggestionType string `json:"suggestiontype"`
+	Query          string `json:"query"`
+	WidgetId       string `json:"widgetid"`
+	ReqNum         int    `json:"reqnum"`
+	FileCwd        string `json:"file:cwd,omitempty"`
+	FileDirOnly    bool   `json:"file:dironly,omitempty"`
+	FileConnection string `json:"file:connection,omitempty"`
+}
+
+type FetchSuggestionsResponse struct {
+	ReqNum      int              `json:"reqnum"`
+	Suggestions []SuggestionType `json:"suggestions"`
+}
+
+type SuggestionType struct {
+	Type         string `json:"type"`
+	SuggestionId string `json:"suggestionid"`
+	Display      string `json:"display"`
+	SubText      string `json:"subtext,omitempty"`
+	Icon         string `json:"icon,omitempty"`
+	IconColor    string `json:"iconcolor,omitempty"`
+	IconSrc      string `json:"iconsrc,omitempty"`
+	MatchPos     []int  `json:"matchpos,omitempty"`
+	SubMatchPos  []int  `json:"submatchpos,omitempty"`
+	Score        int    `json:"score,omitempty"`
+	FileMimeType string `json:"file:mimetype,omitempty"`
+	FilePath     string `json:"file:path,omitempty"`
+	FileName     string `json:"file:name,omitempty"`
+	UrlUrl       string `json:"url:url,omitempty"`
 }

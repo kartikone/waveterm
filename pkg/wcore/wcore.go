@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // wave core application coordinator
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -18,17 +19,13 @@ import (
 // the wcore package coordinates actions across the storage layer
 // orchestrating the wave object store, the wave pubsub system, and the wave rpc system
 
-// TODO bring Tx infra into wcore
-
-const DefaultTimeout = 2 * time.Second
-const DefaultActivateBlockTimeout = 60 * time.Second
-
 // Ensures that the initial data is present in the store, creates an initial window if needed
 func EnsureInitialData() error {
 	// does not need to run in a transaction since it is called on startup
 	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancelFn()
 	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+	firstLaunch := false
 	if err == wstore.ErrNotFound {
 		client, err = CreateClient(ctx)
 		if err != nil {
@@ -38,6 +35,7 @@ func EnsureInitialData() error {
 		if migrateErr != nil {
 			log.Printf("error migrating old history: %v\n", migrateErr)
 		}
+		firstLaunch = true
 	}
 	if client.TempOID == "" {
 		log.Println("client.TempOID is empty")
@@ -57,16 +55,16 @@ func EnsureInitialData() error {
 		log.Println("client has windows")
 		return nil
 	}
-	log.Println("client has no windows, creating default workspace")
-	defaultWs, err := CreateWorkspace(ctx, "Default workspace", "circle", "green")
-	if err != nil {
-		return fmt.Errorf("error creating default workspace: %w", err)
+	wsId := ""
+	if firstLaunch {
+		log.Println("client has no windows and first launch, creating starter workspace")
+		starterWs, err := CreateWorkspace(ctx, "Starter workspace", "custom@wave-logo-solid", "#58C142", false, true)
+		if err != nil {
+			return fmt.Errorf("error creating starter workspace: %w", err)
+		}
+		wsId = starterWs.OID
 	}
-	_, err = CreateTab(ctx, defaultWs.OID, "", true, true)
-	if err != nil {
-		return fmt.Errorf("error creating tab: %w", err)
-	}
-	_, err = CreateWindow(ctx, nil, defaultWs.OID)
+	_, err = CreateWindow(ctx, nil, wsId)
 	if err != nil {
 		return fmt.Errorf("error creating window: %w", err)
 	}
@@ -90,6 +88,5 @@ func GetClientData(ctx context.Context) (*waveobj.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting client data: %w", err)
 	}
-	log.Printf("clientData: %v\n", clientData)
 	return clientData, nil
 }

@@ -1,8 +1,8 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { getSettingsKeyAtom } from "@/app/store/global";
-import { atomWithThrottle, boundNumber } from "@/util/util";
+import { atomWithThrottle, boundNumber, fireAndForget } from "@/util/util";
 import { Atom, atom, Getter, PrimitiveAtom, Setter } from "jotai";
 import { splitAtom } from "jotai/utils";
 import { createRef, CSSProperties } from "react";
@@ -17,7 +17,10 @@ import {
     insertNodeAtIndex,
     magnifyNodeToggle,
     moveNode,
+    replaceNode,
     resizeNode,
+    splitHorizontal,
+    splitVertical,
     swapNode,
 } from "./layoutTree";
 import {
@@ -35,8 +38,11 @@ import {
     LayoutTreeInsertNodeAtIndexAction,
     LayoutTreeMagnifyNodeToggleAction,
     LayoutTreeMoveNodeAction,
+    LayoutTreeReplaceNodeAction,
     LayoutTreeResizeNodeAction,
     LayoutTreeSetPendingAction,
+    LayoutTreeSplitHorizontalAction,
+    LayoutTreeSplitVerticalAction,
     LayoutTreeState,
     LayoutTreeSwapNodeAction,
     NavigateDirection,
@@ -283,7 +289,11 @@ export class LayoutModel {
         this.magnifiedNodeSizeAtom = getSettingsKeyAtom("window:magnifiedblocksize");
 
         this.focusedNode = atom((get) => {
+            const ephemeralNode = get(this.ephemeralNode);
             const treeState = get(this.treeStateAtom);
+            if (ephemeralNode) {
+                return ephemeralNode;
+            }
             if (treeState.focusedNodeId == null) {
                 return null;
             }
@@ -371,10 +381,18 @@ export class LayoutModel {
             case LayoutTreeActionType.MagnifyNodeToggle:
                 magnifyNodeToggle(this.treeState, action as LayoutTreeMagnifyNodeToggleAction);
                 break;
-            case LayoutTreeActionType.ClearTree: {
+            case LayoutTreeActionType.ClearTree:
                 clearTree(this.treeState);
                 break;
-            }
+            case LayoutTreeActionType.ReplaceNode:
+                replaceNode(this.treeState, action as LayoutTreeReplaceNodeAction);
+                break;
+            case LayoutTreeActionType.SplitHorizontal:
+                splitHorizontal(this.treeState, action as LayoutTreeSplitHorizontalAction);
+                break;
+            case LayoutTreeActionType.SplitVertical:
+                splitVertical(this.treeState, action as LayoutTreeSplitVerticalAction);
+                break;
             default:
                 console.error("Invalid reducer action", this.treeState, action);
         }
@@ -412,6 +430,11 @@ export class LayoutModel {
                 for (const action of actions) {
                     switch (action.actiontype) {
                         case LayoutTreeActionType.InsertNode: {
+                            if (action.ephemeral) {
+                                this.newEphemeralNode(action.blockid);
+                                break;
+                            }
+
                             const insertNodeAction: LayoutTreeInsertNodeAction = {
                                 type: LayoutTreeActionType.InsertNode,
                                 node: newLayoutNode(undefined, undefined, undefined, {
@@ -461,6 +484,81 @@ export class LayoutModel {
                                 } as LayoutTreeClearTreeAction,
                                 false
                             );
+                            break;
+                        }
+                        case LayoutTreeActionType.ReplaceNode: {
+                            const targetNode = this?.getNodeByBlockId(action.targetblockid);
+                            if (!targetNode) {
+                                console.error(
+                                    "Cannot apply eventbus layout action ReplaceNode, could not find target node with blockId",
+                                    action.targetblockid
+                                );
+                                break;
+                            }
+                            const replaceAction: LayoutTreeReplaceNodeAction = {
+                                type: LayoutTreeActionType.ReplaceNode,
+                                targetNodeId: targetNode.id,
+                                newNode: newLayoutNode(undefined, action.nodesize, undefined, {
+                                    blockId: action.blockid,
+                                }),
+                            };
+                            this.treeReducer(replaceAction, false);
+                            break;
+                        }
+                        case LayoutTreeActionType.SplitHorizontal: {
+                            const targetNode = this?.getNodeByBlockId(action.targetblockid);
+                            if (!targetNode) {
+                                console.error(
+                                    "Cannot apply eventbus layout action SplitHorizontal, could not find target node with blockId",
+                                    action.targetblockid
+                                );
+                                break;
+                            }
+                            if (action.position != "before" && action.position != "after") {
+                                console.error(
+                                    "Cannot apply eventbus layout action SplitHorizontal, invalid position",
+                                    action.position
+                                );
+                                break;
+                            }
+                            const newNode = newLayoutNode(undefined, action.nodesize, undefined, {
+                                blockId: action.blockid,
+                            });
+                            const splitAction: LayoutTreeSplitHorizontalAction = {
+                                type: LayoutTreeActionType.SplitHorizontal,
+                                targetNodeId: targetNode.id,
+                                newNode: newNode,
+                                position: action.position,
+                            };
+                            this.treeReducer(splitAction, false);
+                            break;
+                        }
+                        case LayoutTreeActionType.SplitVertical: {
+                            const targetNode = this?.getNodeByBlockId(action.targetblockid);
+                            if (!targetNode) {
+                                console.error(
+                                    "Cannot apply eventbus layout action SplitVertical, could not find target node with blockId",
+                                    action.targetblockid
+                                );
+                                break;
+                            }
+                            if (action.position != "before" && action.position != "after") {
+                                console.error(
+                                    "Cannot apply eventbus layout action SplitVertical, invalid position",
+                                    action.position
+                                );
+                                break;
+                            }
+                            const newNode = newLayoutNode(undefined, action.nodesize, undefined, {
+                                blockId: action.blockid,
+                            });
+                            const splitAction: LayoutTreeSplitVerticalAction = {
+                                type: LayoutTreeActionType.SplitVertical,
+                                targetNodeId: targetNode.id,
+                                newNode: newNode,
+                                position: action.position,
+                            };
+                            this.treeReducer(splitAction, false);
                             break;
                         }
                         default:
@@ -852,7 +950,7 @@ export class LayoutModel {
                 animationTimeS: this.animationTimeS,
                 ready: this.ready,
                 disablePointerEvents: this.activeDrag,
-                onClose: async () => await this.closeNode(nodeid),
+                onClose: () => fireAndForget(() => this.closeNode(nodeid)),
                 toggleMagnify: () => this.magnifyNodeToggle(nodeid),
                 focusNode: () => this.focusNode(nodeid),
                 dragHandleRef: createRef(),

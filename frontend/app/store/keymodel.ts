@@ -1,12 +1,16 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import {
     atoms,
     createBlock,
+    createBlockSplitHorizontally,
+    createBlockSplitVertically,
     createTab,
+    getAllBlockComponentModels,
     getApi,
     getBlockComponentModel,
+    getSettingsKeyAtom,
     globalStore,
     refocusNode,
     WOS,
@@ -19,10 +23,18 @@ import {
 } from "@/layout/index";
 import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import * as keyutil from "@/util/keyutil";
+import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { modalsModel } from "./modalmodel";
 
 const simpleControlShiftAtom = jotai.atom(false);
 const globalKeyMap = new Map<string, (waveEvent: WaveKeyboardEvent) => boolean>();
+
+export function keyboardMouseDownHandler(e: MouseEvent) {
+    if (!e.ctrlKey || !e.shiftKey) {
+        unsetControlShift();
+    }
+}
 
 function getFocusedBlockInStaticTab() {
     const tabId = globalStore.get(atoms.staticTabId);
@@ -70,20 +82,25 @@ function shouldDispatchToBlock(e: WaveKeyboardEvent): boolean {
 }
 
 function genericClose(tabId: string) {
+    const ws = globalStore.get(atoms.workspace);
     const tabORef = WOS.makeORef("tab", tabId);
     const tabAtom = WOS.getWaveObjectAtom<Tab>(tabORef);
     const tabData = globalStore.get(tabAtom);
     if (tabData == null) {
         return;
     }
+    if (ws.pinnedtabids?.includes(tabId) && tabData.blockids?.length == 1) {
+        // don't allow closing the last block in a pinned tab
+        return;
+    }
     if (tabData.blockids == null || tabData.blockids.length == 0) {
         // close tab
-        getApi().closeTab(tabId);
+        getApi().closeTab(ws.oid, tabId);
         deleteLayoutModelForTab(tabId);
         return;
     }
     const layoutModel = getLayoutModelForTab(tabAtom);
-    layoutModel.closeFocusedNode();
+    fireAndForget(layoutModel.closeFocusedNode.bind(layoutModel));
 }
 
 function switchBlockByBlockNum(index: number) {
@@ -136,6 +153,16 @@ function switchTab(offset: number) {
 }
 
 function handleCmdI() {
+    globalRefocus();
+}
+
+function globalRefocusWithTimeout(timeoutVal: number) {
+    setTimeout(() => {
+        globalRefocus();
+    }, timeoutVal);
+}
+
+function globalRefocus() {
     const layoutModel = getLayoutModelForStaticTab();
     const focusedNode = globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {
@@ -150,7 +177,17 @@ function handleCmdI() {
     refocusNode(blockId);
 }
 
-async function handleCmdN() {
+function getDefaultNewBlockDef(): BlockDef {
+    const adnbAtom = getSettingsKeyAtom("app:defaultnewblock");
+    const adnb = globalStore.get(adnbAtom) ?? "term";
+    if (adnb == "launcher") {
+        return {
+            meta: {
+                view: "launcher",
+            },
+        };
+    }
+    // "term", blank, anything else, fall back to terminal
     const termBlockDef: BlockDef = {
         meta: {
             view: "term",
@@ -171,10 +208,42 @@ async function handleCmdN() {
             termBlockDef.meta.connection = blockData.meta.connection;
         }
     }
-    await createBlock(termBlockDef);
+    return termBlockDef;
 }
 
+async function handleCmdN() {
+    const blockDef = getDefaultNewBlockDef();
+    await createBlock(blockDef);
+}
+
+async function handleSplitHorizontal() {
+    const layoutModel = getLayoutModelForStaticTab();
+    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    if (focusedNode == null) {
+        return;
+    }
+    const blockDef = getDefaultNewBlockDef();
+    await createBlockSplitHorizontally(blockDef, focusedNode.data.blockId, "after");
+}
+
+async function handleSplitVertical() {
+    const layoutModel = getLayoutModelForStaticTab();
+    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    if (focusedNode == null) {
+        return;
+    }
+    const blockDef = getDefaultNewBlockDef();
+    await createBlockSplitVertically(blockDef, focusedNode.data.blockId, "after");
+}
+
+let lastHandledEvent: KeyboardEvent | null = null;
+
 function appHandleKeyDown(waveEvent: WaveKeyboardEvent): boolean {
+    const nativeEvent = (waveEvent as any).nativeEvent;
+    if (lastHandledEvent != null && nativeEvent != null && lastHandledEvent === nativeEvent) {
+        return false;
+    }
+    lastHandledEvent = nativeEvent;
     const handled = handleGlobalWaveKeyboardEvents(waveEvent);
     if (handled) {
         return true;
@@ -215,6 +284,19 @@ function tryReinjectKey(event: WaveKeyboardEvent): boolean {
     return appHandleKeyDown(event);
 }
 
+function countTermBlocks(): number {
+    const allBCMs = getAllBlockComponentModels();
+    let count = 0;
+    let gsGetBound = globalStore.get.bind(globalStore);
+    for (const bcm of allBCMs) {
+        const viewModel = bcm.viewModel;
+        if (viewModel.viewType == "term" && viewModel.isBasicTerm?.(gsGetBound)) {
+            count++;
+        }
+    }
+    return count;
+}
+
 function registerGlobalKeys() {
     globalKeyMap.set("Cmd:]", () => {
         switchTab(1);
@@ -236,6 +318,14 @@ function registerGlobalKeys() {
         handleCmdN();
         return true;
     });
+    globalKeyMap.set("Cmd:d", () => {
+        handleSplitHorizontal();
+        return true;
+    });
+    globalKeyMap.set("Shift:Cmd:d", () => {
+        handleSplitVertical();
+        return true;
+    });
     globalKeyMap.set("Cmd:i", () => {
         handleCmdI();
         return true;
@@ -246,10 +336,20 @@ function registerGlobalKeys() {
     });
     globalKeyMap.set("Cmd:w", () => {
         const tabId = globalStore.get(atoms.staticTabId);
+        genericClose(tabId);
+        return true;
+    });
+    globalKeyMap.set("Cmd:Shift:w", () => {
+        const tabId = globalStore.get(atoms.staticTabId);
         const ws = globalStore.get(atoms.workspace);
-        if (!ws.pinnedtabids?.includes(tabId)) {
-            genericClose(tabId);
+        if (ws.pinnedtabids?.includes(tabId)) {
+            // switch to first unpinned tab if it exists (for close spamming)
+            if (ws.tabids != null && ws.tabids.length > 0) {
+                getApi().setActiveTab(ws.tabids[0]);
+            }
+            return true;
         }
+        getApi().closeTab(ws.oid, tabId);
         return true;
     });
     globalKeyMap.set("Cmd:m", () => {
@@ -287,6 +387,15 @@ function registerGlobalKeys() {
             return true;
         }
     });
+    globalKeyMap.set("Ctrl:Shift:i", () => {
+        const curMI = globalStore.get(atoms.isTermMultiInput);
+        if (!curMI && countTermBlocks() <= 1) {
+            // don't turn on multi-input unless there are 2 or more basic term blocks
+            return true;
+        }
+        globalStore.set(atoms.isTermMultiInput, !curMI);
+        return true;
+    });
     for (let idx = 1; idx <= 9; idx++) {
         globalKeyMap.set(`Cmd:${idx}`, () => {
             switchTabAbs(idx);
@@ -301,9 +410,40 @@ function registerGlobalKeys() {
             return true;
         });
     }
+    function activateSearch(event: WaveKeyboardEvent): boolean {
+        const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
+        // Ctrl+f is reserved in most shells
+        if (event.control && bcm.viewModel.viewType == "term") {
+            return false;
+        }
+        if (bcm.viewModel.searchAtoms) {
+            globalStore.set(bcm.viewModel.searchAtoms.isOpen, true);
+            return true;
+        }
+        return false;
+    }
+    function deactivateSearch(): boolean {
+        const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
+        if (bcm.viewModel.searchAtoms && globalStore.get(bcm.viewModel.searchAtoms.isOpen)) {
+            globalStore.set(bcm.viewModel.searchAtoms.isOpen, false);
+            return true;
+        }
+        return false;
+    }
+    globalKeyMap.set("Cmd:f", activateSearch);
+    globalKeyMap.set("Escape", () => {
+        if (modalsModel.hasOpenModals()) {
+            modalsModel.popModal();
+            return true;
+        }
+        if (deactivateSearch()) {
+            return true;
+        }
+        return false;
+    });
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
-    allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft");
+    allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");
     getApi().registerGlobalWebviewKeys(allKeys);
 }
 
@@ -323,12 +463,15 @@ function handleGlobalWaveKeyboardEvents(waveEvent: WaveKeyboardEvent): boolean {
             return handler(waveEvent);
         }
     }
+    return false;
 }
 
 export {
     appHandleKeyDown,
     getAllGlobalKeyBindings,
     getSimpleControlShiftAtom,
+    globalRefocus,
+    globalRefocusWithTimeout,
     registerControlShiftStateUpdateHandler,
     registerElectronReinjectKeyHandler,
     registerGlobalKeys,

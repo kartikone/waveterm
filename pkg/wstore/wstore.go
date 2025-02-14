@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wstore
@@ -31,29 +31,7 @@ func UpdateTabName(ctx context.Context, tabId, name string) error {
 	})
 }
 
-// must delete all blocks individually first
-// also deletes LayoutState
-func DeleteTab(ctx context.Context, workspaceId string, tabId string) error {
-	return WithTx(ctx, func(tx *TxWrap) error {
-		tab, _ := DBGet[*waveobj.Tab](tx.Context(), tabId)
-		if tab == nil {
-			return nil
-		}
-		if len(tab.BlockIds) != 0 {
-			return fmt.Errorf("tab has blocks, must delete blocks first")
-		}
-		ws, _ := DBGet[*waveobj.Workspace](tx.Context(), workspaceId)
-		if ws != nil {
-			ws.TabIds = utilfn.RemoveElemFromSlice(ws.TabIds, tabId)
-			DBUpdate(tx.Context(), ws)
-		}
-		DBDelete(tx.Context(), waveobj.OType_Tab, tabId)
-		DBDelete(tx.Context(), waveobj.OType_LayoutState, tab.LayoutState)
-		return nil
-	})
-}
-
-func UpdateObjectMeta(ctx context.Context, oref waveobj.ORef, meta waveobj.MetaMapType) error {
+func UpdateObjectMeta(ctx context.Context, oref waveobj.ORef, meta waveobj.MetaMapType, mergeSpecial bool) error {
 	return WithTx(ctx, func(tx *TxWrap) error {
 		if oref.IsEmpty() {
 			return fmt.Errorf("empty object reference")
@@ -66,7 +44,7 @@ func UpdateObjectMeta(ctx context.Context, oref waveobj.ORef, meta waveobj.MetaM
 		if objMeta == nil {
 			objMeta = make(map[string]any)
 		}
-		newMeta := waveobj.MergeMeta(objMeta, meta, false)
+		newMeta := waveobj.MergeMeta(objMeta, meta, mergeSpecial)
 		waveobj.SetMeta(obj, newMeta)
 		DBUpdate(tx.Context(), obj)
 		return nil

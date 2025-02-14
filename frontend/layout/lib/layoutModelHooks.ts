@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useOnResize } from "@/app/hook/useDimensions";
@@ -24,7 +24,7 @@ export function getLayoutModelForTab(tabAtom: Atom<Tab>): LayoutModel {
     }
     const layoutTreeStateAtom = withLayoutTreeStateAtomFromTab(tabAtom);
     const layoutModel = new LayoutModel(layoutTreeStateAtom, globalStore.get, globalStore.set);
-    globalStore.sub(layoutTreeStateAtom, () => fireAndForget(async () => layoutModel.onTreeStateAtomUpdated()));
+    globalStore.sub(layoutTreeStateAtom, () => fireAndForget(layoutModel.onTreeStateAtomUpdated.bind(layoutModel)));
     layoutModelMap.set(tabId, layoutModel);
     return layoutModel;
 }
@@ -56,7 +56,7 @@ export function useTileLayout(tabAtom: Atom<Tab>, tileContent: TileLayoutContent
     useOnResize(layoutModel?.displayContainerRef, layoutModel?.onContainerResize);
 
     // Once the TileLayout is mounted, re-run the state update to get all the nodes to flow in the layout.
-    useEffect(() => fireAndForget(async () => layoutModel.onTreeStateAtomUpdated(true)), []);
+    useEffect(() => fireAndForget(() => layoutModel.onTreeStateAtomUpdated(true)), []);
 
     useEffect(() => layoutModel.registerTileLayout(tileContent), [tileContent]);
     return layoutModel;

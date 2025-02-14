@@ -3,7 +3,7 @@
 
 @use "../mixins.scss";
 
-.button {
+.wave-button {
     // override default button appearance
     border: 1px solid transparent;
     outline: 1px solid transparent;
@@ -144,6 +144,10 @@
                 color: var(--button-yellow-hover-bg);
             }
         }
+    }
+
+    &.bold {
+        font-weight: bold;
     }
 
     &:disabled {

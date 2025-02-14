@@ -5,7 +5,7 @@
     position: absolute;
     width: 130px;
     height: calc(100% - 1px);
-    padding: 6px 0px 0px;
+    padding: 0 0 0 0;
     box-sizing: border-box;
     font-weight: bold;
     color: var(--secondary-text-color);
@@ -41,7 +41,7 @@
         .tab-inner {
             border-color: transparent;
             border-radius: 6px;
-            background: rgb(from var(--main-text-color) r g b / 0.07);
+            background: rgb(from var(--main-text-color) r g b / 0.1);
         }
 
         .name {
@@ -81,7 +81,7 @@
         }
     }
 
-    .button {
+    .wave-button {
         position: absolute;
         top: 50%;
         right: 4px;
@@ -102,7 +102,9 @@
     }
 }
 
-body:not(.nohover) .tab:hover {
+// Only apply hover effects when not in nohover mode. This prevents the previously-hovered tab from remaining hovered while a tab view is not mounted.
+body:not(.nohover) .tab:hover,
+body:not(.nohover) .tab.dragging {
     & + .tab::after,
     &::after {
         content: none;
@@ -110,7 +112,7 @@ body:not(.nohover) .tab:hover {
 
     .tab-inner {
         border-color: transparent;
-        background: rgb(from var(--main-text-color) r g b / 0.07);
+        background: rgb(from var(--main-text-color) r g b / 0.1);
     }
     .close {
         visibility: visible;
@@ -118,6 +120,11 @@ body:not(.nohover) .tab:hover {
             color: var(--main-text-color);
         }
     }
+}
+
+// When in nohover mode, always show the close button on the active tab. This prevents the close button of the active tab from flickering when nohover is toggled.
+body.nohover .tab.active .close {
+    visibility: visible;
 }
 
 @keyframes expandWidthAndFadeIn {

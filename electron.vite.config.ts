@@ -1,6 +1,7 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "electron-vite";
 import flow from "rollup-plugin-flow";
@@ -29,13 +30,6 @@ export default defineConfig({
         define: {
             "process.env.WS_NO_BUFFER_UTIL": "true",
             "process.env.WS_NO_UTF_8_VALIDATE": "true",
-        },
-        css: {
-            preprocessorOptions: {
-                scss: {
-                    api: "modern-compiler", // or "modern"
-                },
-            },
         },
     },
     preload: {
@@ -70,25 +64,26 @@ export default defineConfig({
         server: {
             open: false,
         },
+        css: {
+            preprocessorOptions: {
+                scss: {
+                    silenceDeprecations: ["mixed-decls"],
+                },
+            },
+        },
         plugins: [
             ViteImageOptimizer(),
             tsconfigPaths(),
+            flow(),
             svgr({
                 svgrOptions: { exportType: "default", ref: true, svgo: false, titleProp: true },
                 include: "**/*.svg",
             }),
             react({}),
-            flow(),
+            tailwindcss(),
             viteStaticCopy({
                 targets: [{ src: "node_modules/monaco-editor/min/vs/*", dest: "monaco" }],
             }),
         ],
-        css: {
-            preprocessorOptions: {
-                scss: {
-                    api: "modern-compiler", // or "modern"
-                },
-            },
-        },
     },
 });

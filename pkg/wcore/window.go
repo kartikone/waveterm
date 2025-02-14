@@ -1,3 +1,6 @@
+// Copyright 2025, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 package wcore
 
 import (
@@ -25,7 +28,8 @@ func SwitchWorkspace(ctx context.Context, windowId string, workspaceId string) (
 	if err != nil {
 		return nil, fmt.Errorf("error getting window: %w", err)
 	}
-	if window.WorkspaceId == workspaceId {
+	curWsId := window.WorkspaceId
+	if curWsId == workspaceId {
 		return nil, nil
 	}
 
@@ -42,24 +46,27 @@ func SwitchWorkspace(ctx context.Context, windowId string, workspaceId string) (
 			return nil, err
 		}
 	}
-
-	curWs, err := GetWorkspace(ctx, window.WorkspaceId)
-	if err != nil {
-		return nil, fmt.Errorf("error getting current workspace: %w", err)
-	}
-	deleted, err := DeleteWorkspace(ctx, curWs.OID, false)
-	if err != nil {
-		return nil, fmt.Errorf("error deleting current workspace: %w", err)
-	}
-	if !deleted {
-		log.Printf("current workspace %s was not deleted\n", curWs.OID)
-	} else {
-		log.Printf("deleted current workspace %s\n", curWs.OID)
-	}
-
 	window.WorkspaceId = workspaceId
+	err = wstore.DBUpdate(ctx, window)
+	if err != nil {
+		return nil, fmt.Errorf("error updating window: %w", err)
+	}
+
+	deleted, _, err := DeleteWorkspace(ctx, curWsId, false)
+	if err != nil && deleted {
+		print(err.Error()) // @jalileh isolated the error for now, curwId/workspace was deleted when this occurs.
+	} else if err != nil {
+		return nil, fmt.Errorf("error deleting workspace: %w", err)
+	}
+
+	if !deleted {
+		log.Printf("current workspace %s was not deleted\n", curWsId)
+	} else {
+		log.Printf("deleted current workspace %s\n", curWsId)
+	}
+
 	log.Printf("switching window %s to workspace %s\n", windowId, workspaceId)
-	return ws, wstore.DBUpdate(ctx, window)
+	return ws, nil
 }
 
 func GetWindow(ctx context.Context, windowId string) (*waveobj.Window, error) {
@@ -75,7 +82,7 @@ func CreateWindow(ctx context.Context, winSize *waveobj.WinSize, workspaceId str
 	log.Printf("CreateWindow %v %v\n", winSize, workspaceId)
 	var ws *waveobj.Workspace
 	if workspaceId == "" {
-		ws1, err := CreateWorkspace(ctx, "", "", "")
+		ws1, err := CreateWorkspace(ctx, "", "", "", false, false)
 		if err != nil {
 			return nil, fmt.Errorf("error creating workspace: %w", err)
 		}
@@ -127,7 +134,7 @@ func CloseWindow(ctx context.Context, windowId string, fromElectron bool) error 
 	window, err := GetWindow(ctx, windowId)
 	if err == nil {
 		log.Printf("got window %s\n", windowId)
-		deleted, err := DeleteWorkspace(ctx, window.WorkspaceId, false)
+		deleted, _, err := DeleteWorkspace(ctx, window.WorkspaceId, false)
 		if err != nil {
 			log.Printf("error deleting workspace: %v\n", err)
 		}
@@ -174,9 +181,9 @@ func CheckAndFixWindow(ctx context.Context, windowId string) *waveobj.Window {
 		CloseWindow(ctx, windowId, false)
 		return nil
 	}
-	if len(ws.TabIds) == 0 {
+	if len(ws.TabIds) == 0 && len(ws.PinnedTabIds) == 0 {
 		log.Printf("fixing workspace with no tabs %q (in checkAndFixWindow)\n", ws.OID)
-		_, err = CreateTab(ctx, ws.OID, "", true, false)
+		_, err = CreateTab(ctx, ws.OID, "", true, false, false)
 		if err != nil {
 			log.Printf("error creating tab (in checkAndFixWindow): %v\n", err)
 		}

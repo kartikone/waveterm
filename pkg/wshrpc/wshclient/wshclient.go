@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // Generated Code. DO NOT EDIT.
@@ -6,11 +6,14 @@
 package wshclient
 
 import (
+	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/vdom"
+	"github.com/wavetermdev/waveterm/pkg/util/iochan/iochantypes"
 )
 
 // command "activity", wshserver.ActivityCommand
@@ -28,6 +31,12 @@ func AiSendMessageCommand(w *wshutil.WshRpc, data wshrpc.AiMessageData, opts *ws
 // command "authenticate", wshserver.AuthenticateCommand
 func AuthenticateCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (wshrpc.CommandAuthenticateRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAuthenticateRtnData](w, "authenticate", data, opts)
+	return resp, err
+}
+
+// command "authenticatetoken", wshserver.AuthenticateTokenCommand
+func AuthenticateTokenCommand(w *wshutil.WshRpc, data wshrpc.CommandAuthenticateTokenData, opts *wshrpc.RpcOpts) (wshrpc.CommandAuthenticateRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAuthenticateRtnData](w, "authenticatetoken", data, opts)
 	return resp, err
 }
 
@@ -50,7 +59,7 @@ func ConnDisconnectCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts)
 }
 
 // command "connensure", wshserver.ConnEnsureCommand
-func ConnEnsureCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+func ConnEnsureCommand(w *wshutil.WshRpc, data wshrpc.ConnExtData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "connensure", data, opts)
 	return err
 }
@@ -62,7 +71,7 @@ func ConnListCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]string, error) 
 }
 
 // command "connreinstallwsh", wshserver.ConnReinstallWshCommand
-func ConnReinstallWshCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+func ConnReinstallWshCommand(w *wshutil.WshRpc, data wshrpc.ConnExtData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "connreinstallwsh", data, opts)
 	return err
 }
@@ -71,6 +80,18 @@ func ConnReinstallWshCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpt
 func ConnStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.ConnStatus, error) {
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.ConnStatus](w, "connstatus", nil, opts)
 	return resp, err
+}
+
+// command "connupdatewsh", wshserver.ConnUpdateWshCommand
+func ConnUpdateWshCommand(w *wshutil.WshRpc, data wshrpc.RemoteInfo, opts *wshrpc.RpcOpts) (bool, error) {
+	resp, err := sendRpcRequestCallHelper[bool](w, "connupdatewsh", data, opts)
+	return resp, err
+}
+
+// command "controllerappendoutput", wshserver.ControllerAppendOutputCommand
+func ControllerAppendOutputCommand(w *wshutil.WshRpc, data wshrpc.CommandControllerAppendOutputData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "controllerappendoutput", data, opts)
+	return err
 }
 
 // command "controllerinput", wshserver.ControllerInputCommand
@@ -112,6 +133,12 @@ func DeleteBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandDeleteBlockData, o
 // command "deletesubblock", wshserver.DeleteSubBlockCommand
 func DeleteSubBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandDeleteBlockData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "deletesubblock", data, opts)
+	return err
+}
+
+// command "dismisswshfail", wshserver.DismissWshFailCommand
+func DismissWshFailCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "dismisswshfail", data, opts)
 	return err
 }
 
@@ -157,8 +184,14 @@ func EventUnsubAllCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	return err
 }
 
+// command "fetchsuggestions", wshserver.FetchSuggestionsCommand
+func FetchSuggestionsCommand(w *wshutil.WshRpc, data wshrpc.FetchSuggestionsData, opts *wshrpc.RpcOpts) (*wshrpc.FetchSuggestionsResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.FetchSuggestionsResponse](w, "fetchsuggestions", data, opts)
+	return resp, err
+}
+
 // command "fileappend", wshserver.FileAppendCommand
-func FileAppendCommand(w *wshutil.WshRpc, data wshrpc.CommandFileData, opts *wshrpc.RpcOpts) error {
+func FileAppendCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "fileappend", data, opts)
 	return err
 }
@@ -169,38 +202,66 @@ func FileAppendIJsonCommand(w *wshutil.WshRpc, data wshrpc.CommandAppendIJsonDat
 	return err
 }
 
+// command "filecopy", wshserver.FileCopyCommand
+func FileCopyCommand(w *wshutil.WshRpc, data wshrpc.CommandFileCopyData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "filecopy", data, opts)
+	return err
+}
+
 // command "filecreate", wshserver.FileCreateCommand
-func FileCreateCommand(w *wshutil.WshRpc, data wshrpc.CommandFileCreateData, opts *wshrpc.RpcOpts) error {
+func FileCreateCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "filecreate", data, opts)
 	return err
 }
 
 // command "filedelete", wshserver.FileDeleteCommand
-func FileDeleteCommand(w *wshutil.WshRpc, data wshrpc.CommandFileData, opts *wshrpc.RpcOpts) error {
+func FileDeleteCommand(w *wshutil.WshRpc, data wshrpc.CommandDeleteFileData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "filedelete", data, opts)
 	return err
 }
 
 // command "fileinfo", wshserver.FileInfoCommand
-func FileInfoCommand(w *wshutil.WshRpc, data wshrpc.CommandFileData, opts *wshrpc.RpcOpts) (*wshrpc.WaveFileInfo, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.WaveFileInfo](w, "fileinfo", data, opts)
+func FileInfoCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) (*wshrpc.FileInfo, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.FileInfo](w, "fileinfo", data, opts)
 	return resp, err
 }
 
 // command "filelist", wshserver.FileListCommand
-func FileListCommand(w *wshutil.WshRpc, data wshrpc.CommandFileListData, opts *wshrpc.RpcOpts) ([]*wshrpc.WaveFileInfo, error) {
-	resp, err := sendRpcRequestCallHelper[[]*wshrpc.WaveFileInfo](w, "filelist", data, opts)
+func FileListCommand(w *wshutil.WshRpc, data wshrpc.FileListData, opts *wshrpc.RpcOpts) ([]*wshrpc.FileInfo, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.FileInfo](w, "filelist", data, opts)
 	return resp, err
+}
+
+// command "fileliststream", wshserver.FileListStreamCommand
+func FileListStreamCommand(w *wshutil.WshRpc, data wshrpc.FileListData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRemoteListEntriesRtnData] {
+	return sendRpcRequestResponseStreamHelper[wshrpc.CommandRemoteListEntriesRtnData](w, "fileliststream", data, opts)
+}
+
+// command "filemkdir", wshserver.FileMkdirCommand
+func FileMkdirCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "filemkdir", data, opts)
+	return err
+}
+
+// command "filemove", wshserver.FileMoveCommand
+func FileMoveCommand(w *wshutil.WshRpc, data wshrpc.CommandFileCopyData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "filemove", data, opts)
+	return err
 }
 
 // command "fileread", wshserver.FileReadCommand
-func FileReadCommand(w *wshutil.WshRpc, data wshrpc.CommandFileData, opts *wshrpc.RpcOpts) (string, error) {
-	resp, err := sendRpcRequestCallHelper[string](w, "fileread", data, opts)
+func FileReadCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) (*wshrpc.FileData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.FileData](w, "fileread", data, opts)
 	return resp, err
 }
 
+// command "filestreamtar", wshserver.FileStreamTarCommand
+func FileStreamTarCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteStreamTarData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[iochantypes.Packet] {
+	return sendRpcRequestResponseStreamHelper[iochantypes.Packet](w, "filestreamtar", data, opts)
+}
+
 // command "filewrite", wshserver.FileWriteCommand
-func FileWriteCommand(w *wshutil.WshRpc, data wshrpc.CommandFileData, opts *wshrpc.RpcOpts) error {
+func FileWriteCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "filewrite", data, opts)
 	return err
 }
@@ -209,6 +270,12 @@ func FileWriteCommand(w *wshutil.WshRpc, data wshrpc.CommandFileData, opts *wshr
 func FocusWindowCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "focuswindow", data, opts)
 	return err
+}
+
+// command "getfullconfig", wshserver.GetFullConfigCommand
+func GetFullConfigCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (wconfig.FullConfigType, error) {
+	resp, err := sendRpcRequestCallHelper[wconfig.FullConfigType](w, "getfullconfig", nil, opts)
+	return resp, err
 }
 
 // command "getmeta", wshserver.GetMetaCommand
@@ -241,8 +308,26 @@ func NotifyCommand(w *wshutil.WshRpc, data wshrpc.WaveNotificationOptions, opts 
 	return err
 }
 
+// command "path", wshserver.PathCommand
+func PathCommand(w *wshutil.WshRpc, data wshrpc.PathCommandData, opts *wshrpc.RpcOpts) (string, error) {
+	resp, err := sendRpcRequestCallHelper[string](w, "path", data, opts)
+	return resp, err
+}
+
+// command "recordtevent", wshserver.RecordTEventCommand
+func RecordTEventCommand(w *wshutil.WshRpc, data telemetrydata.TEvent, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "recordtevent", data, opts)
+	return err
+}
+
+// command "remotefilecopy", wshserver.RemoteFileCopyCommand
+func RemoteFileCopyCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteFileCopyData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "remotefilecopy", data, opts)
+	return err
+}
+
 // command "remotefiledelete", wshserver.RemoteFileDeleteCommand
-func RemoteFileDeleteCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+func RemoteFileDeleteCommand(w *wshutil.WshRpc, data wshrpc.CommandDeleteFileData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "remotefiledelete", data, opts)
 	return err
 }
@@ -259,9 +344,9 @@ func RemoteFileJoinCommand(w *wshutil.WshRpc, data []string, opts *wshrpc.RpcOpt
 	return resp, err
 }
 
-// command "remotefilerename", wshserver.RemoteFileRenameCommand
-func RemoteFileRenameCommand(w *wshutil.WshRpc, data [2]string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "remotefilerename", data, opts)
+// command "remotefilemove", wshserver.RemoteFileMoveCommand
+func RemoteFileMoveCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteFileCopyData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "remotefilemove", data, opts)
 	return err
 }
 
@@ -269,6 +354,23 @@ func RemoteFileRenameCommand(w *wshutil.WshRpc, data [2]string, opts *wshrpc.Rpc
 func RemoteFileTouchCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "remotefiletouch", data, opts)
 	return err
+}
+
+// command "remotegetinfo", wshserver.RemoteGetInfoCommand
+func RemoteGetInfoCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (wshrpc.RemoteInfo, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.RemoteInfo](w, "remotegetinfo", nil, opts)
+	return resp, err
+}
+
+// command "remoteinstallrcfiles", wshserver.RemoteInstallRcFilesCommand
+func RemoteInstallRcFilesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "remoteinstallrcfiles", nil, opts)
+	return err
+}
+
+// command "remotelistentries", wshserver.RemoteListEntriesCommand
+func RemoteListEntriesCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteListEntriesData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRemoteListEntriesRtnData] {
+	return sendRpcRequestResponseStreamHelper[wshrpc.CommandRemoteListEntriesRtnData](w, "remotelistentries", data, opts)
 }
 
 // command "remotemkdir", wshserver.RemoteMkdirCommand
@@ -283,12 +385,17 @@ func RemoteStreamCpuDataCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan ws
 }
 
 // command "remotestreamfile", wshserver.RemoteStreamFileCommand
-func RemoteStreamFileCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteStreamFileData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRemoteStreamFileRtnData] {
-	return sendRpcRequestResponseStreamHelper[wshrpc.CommandRemoteStreamFileRtnData](w, "remotestreamfile", data, opts)
+func RemoteStreamFileCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteStreamFileData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.FileData] {
+	return sendRpcRequestResponseStreamHelper[wshrpc.FileData](w, "remotestreamfile", data, opts)
+}
+
+// command "remotetarstream", wshserver.RemoteTarStreamCommand
+func RemoteTarStreamCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteStreamTarData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[iochantypes.Packet] {
+	return sendRpcRequestResponseStreamHelper[iochantypes.Packet](w, "remotetarstream", data, opts)
 }
 
 // command "remotewritefile", wshserver.RemoteWriteFileCommand
-func RemoteWriteFileCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteWriteFileData, opts *wshrpc.RpcOpts) error {
+func RemoteWriteFileCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "remotewritefile", data, opts)
 	return err
 }
@@ -311,9 +418,21 @@ func RouteUnannounceCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	return err
 }
 
+// command "sendtelemetry", wshserver.SendTelemetryCommand
+func SendTelemetryCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "sendtelemetry", nil, opts)
+	return err
+}
+
 // command "setconfig", wshserver.SetConfigCommand
 func SetConfigCommand(w *wshutil.WshRpc, data wshrpc.MetaSettingsType, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "setconfig", data, opts)
+	return err
+}
+
+// command "setconnectionsconfig", wshserver.SetConnectionsConfigCommand
+func SetConnectionsConfigCommand(w *wshutil.WshRpc, data wshrpc.ConnConfigRequest, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "setconnectionsconfig", data, opts)
 	return err
 }
 
@@ -346,8 +465,8 @@ func StreamTestCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan wshrpc.Resp
 }
 
 // command "streamwaveai", wshserver.StreamWaveAiCommand
-func StreamWaveAiCommand(w *wshutil.WshRpc, data wshrpc.OpenAiStreamRequest, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.OpenAIPacketType] {
-	return sendRpcRequestResponseStreamHelper[wshrpc.OpenAIPacketType](w, "streamwaveai", data, opts)
+func StreamWaveAiCommand(w *wshutil.WshRpc, data wshrpc.WaveAIStreamRequest, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.WaveAIPacketType] {
+	return sendRpcRequestResponseStreamHelper[wshrpc.WaveAIPacketType](w, "streamwaveai", data, opts)
 }
 
 // command "test", wshserver.TestCommand

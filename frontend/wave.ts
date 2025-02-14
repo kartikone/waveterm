@@ -1,14 +1,14 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { App } from "@/app/app";
 import {
+    globalRefocus,
     registerControlShiftStateUpdateHandler,
     registerElectronReinjectKeyHandler,
     registerGlobalKeys,
 } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
-import { FileService } from "@/app/store/services";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { initWshrpc, TabRpcClient } from "@/app/store/wshrpcutil";
 import { loadMonaco } from "@/app/view/codeeditor/codeeditor";
@@ -88,14 +88,15 @@ async function reinitWave() {
     console.log("Reinit Wave");
     getApi().sendLog("Reinit Wave");
 
-    // We use this hack to prevent a flicker in the tab bar when switching to a new tab. This class is set in setActiveTab in global.ts. See tab.scss for where this class is used.
-    requestAnimationFrame(() => {
+    // We use this hack to prevent a flicker of the previously-hovered tab when this view was last active.
+    document.body.classList.add("nohover");
+    requestAnimationFrame(() =>
         setTimeout(() => {
             document.body.classList.remove("nohover");
-        }, 100);
-    });
+        }, 100)
+    );
 
-    const client = await WOS.reloadWaveObject<Client>(WOS.makeORef("client", savedInitOpts.clientId));
+    await WOS.reloadWaveObject<Client>(WOS.makeORef("client", savedInitOpts.clientId));
     const waveWindow = await WOS.reloadWaveObject<WaveWindow>(WOS.makeORef("window", savedInitOpts.windowId));
     const ws = await WOS.reloadWaveObject<Workspace>(WOS.makeORef("workspace", waveWindow.workspaceid));
     const initialTab = await WOS.reloadWaveObject<Tab>(WOS.makeORef("tab", savedInitOpts.tabId));
@@ -105,22 +106,31 @@ async function reinitWave() {
     getApi().setWindowInitStatus("wave-ready");
     globalStore.set(atoms.reinitVersion, globalStore.get(atoms.reinitVersion) + 1);
     globalStore.set(atoms.updaterStatusAtom, getApi().getUpdaterStatus());
+    setTimeout(() => {
+        globalRefocus();
+    }, 50);
 }
 
 function reloadAllWorkspaceTabs(ws: Workspace) {
-    if (ws == null || ws.tabids == null) {
+    if (ws == null || (!ws.tabids?.length && !ws.pinnedtabids?.length)) {
         return;
     }
-    ws.tabids.forEach((tabid) => {
+    ws.tabids?.forEach((tabid) => {
+        WOS.reloadWaveObject<Tab>(WOS.makeORef("tab", tabid));
+    });
+    ws.pinnedtabids?.forEach((tabid) => {
         WOS.reloadWaveObject<Tab>(WOS.makeORef("tab", tabid));
     });
 }
 
 function loadAllWorkspaceTabs(ws: Workspace) {
-    if (ws == null || ws.tabids == null) {
+    if (ws == null || (!ws.tabids?.length && !ws.pinnedtabids?.length)) {
         return;
     }
-    ws.tabids.forEach((tabid) => {
+    ws.tabids?.forEach((tabid) => {
+        WOS.getObjectValue<Tab>(WOS.makeORef("tab", tabid));
+    });
+    ws.pinnedtabids?.forEach((tabid) => {
         WOS.getObjectValue<Tab>(WOS.makeORef("tab", tabid));
     });
 }
@@ -152,7 +162,7 @@ async function initWave(initOpts: WaveInitOpts) {
     (window as any).globalWS = globalWS;
     (window as any).TabRpcClient = TabRpcClient;
     await loadConnStatus();
-    initGlobalWaveEventSubs();
+    initGlobalWaveEventSubs(initOpts);
     subscribeToConnEvents();
 
     // ensures client/window/workspace are loaded into the cache before rendering
@@ -173,8 +183,8 @@ async function initWave(initOpts: WaveInitOpts) {
     registerGlobalKeys();
     registerElectronReinjectKeyHandler();
     registerControlShiftStateUpdateHandler();
-    setTimeout(loadMonaco, 30);
-    const fullConfig = await FileService.GetFullConfig();
+    await loadMonaco();
+    const fullConfig = await RpcApi.GetFullConfigCommand(TabRpcClient);
     console.log("fullconfig", fullConfig);
     globalStore.set(atoms.fullConfigAtom, fullConfig);
     console.log("Wave First Render");

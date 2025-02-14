@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import clsx from "clsx";
@@ -32,7 +32,7 @@ const Button = memo(
                 <Component
                     ref={btnRef}
                     tabIndex={disabled ? -1 : 0}
-                    className={clsx("button", finalClassName)}
+                    className={clsx("wave-button", finalClassName)}
                     disabled={disabled}
                     {...props}
                 >

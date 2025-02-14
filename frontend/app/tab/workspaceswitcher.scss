@@ -9,10 +9,13 @@
     align-items: center;
     gap: 12px;
     border-radius: 6px;
-    background: var(--modal-bg-color);
-    margin-top: 6px;
     margin-right: 13px;
     box-sizing: border-box;
+    background-color: rgb(from var(--main-text-color) r g b / 0.1) !important;
+
+    &:hover {
+        background-color: rgb(from var(--main-text-color) r g b / 0.14) !important;
+    }
 
     .workspace-icon {
         width: 15px;
@@ -21,25 +24,6 @@
         align-items: center;
         justify-content: center;
     }
-}
-
-.icon-left,
-.icon-right {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-}
-
-.divider {
-    width: 1px;
-    height: 20px;
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.scrollable {
-    max-height: 400px;
-    width: 100%;
 }
 
 .workspace-switcher-content {
@@ -51,6 +35,25 @@
     align-items: center;
     border-radius: 8px;
     box-shadow: 0px 8px 24px 0px var(--modal-shadow-color);
+
+    .icon-left,
+    .icon-right {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+
+    .divider {
+        width: 1px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .scrollable {
+        max-height: 400px;
+        width: 100%;
+    }
 
     .title {
         font-size: 12px;
@@ -71,6 +74,10 @@
 
     .expandable-menu-item-group {
         margin: 0 8px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+
+        --workspace-color: var(--main-bg-color);
 
         &:last-child {
             margin-bottom: 4px;
@@ -81,13 +88,6 @@
         .expandable-menu-item {
             margin: 0;
         }
-    }
-
-    .expandable-menu-item-group {
-        border: 1px solid transparent;
-        border-radius: 4px;
-
-        --workspace-color: var(--main-bg-color);
 
         .menu-group-title-wrapper {
             display: flex;
@@ -100,17 +100,17 @@
                 gap: 5px;
             }
 
-            .iconbutton.edit {
+            .wave-iconbutton.edit {
                 visibility: hidden;
             }
 
-            .iconbutton.window {
+            .wave-iconbutton.window {
                 cursor: default;
                 opacity: 1 !important;
             }
         }
 
-        &:hover .iconbutton.edit {
+        &:hover .wave-iconbutton.edit {
             visibility: visible;
         }
 
@@ -142,85 +142,6 @@
     .expandable-menu-item-group-title {
         height: 29px;
         padding: 0;
-
-        .left-icon {
-            font-size: 14px;
-        }
-    }
-
-    .color-icon-selector {
-        width: 100%;
-        .input {
-            margin: 5px 0 10px;
-        }
-
-        .color-selector {
-            display: grid;
-            grid-template-columns: repeat(
-                auto-fit,
-                minmax(15px, 15px)
-            ); // Ensures each color circle has a fixed 14px size
-            grid-gap: 18.5px; // Space between items
-            justify-content: center;
-            align-items: center;
-            margin-top: 5px;
-
-            .color-circle {
-                width: 15px;
-                height: 15px;
-                border-radius: 50%;
-                cursor: pointer;
-                position: relative;
-
-                // Border offset outward
-                &:before {
-                    content: "";
-                    position: absolute;
-                    top: -3px;
-                    left: -3px;
-                    right: -3px;
-                    bottom: -3px;
-                    border-radius: 50%;
-                    border: 1px solid transparent;
-                }
-
-                &.selected:before {
-                    border-color: var(--main-text-color); // Highlight for the selected circle
-                }
-            }
-        }
-
-        .icon-selector {
-            display: grid;
-            grid-template-columns: repeat(
-                auto-fit,
-                minmax(16px, 16px)
-            ); // Ensures each color circle has a fixed 14px size
-            grid-column-gap: 17.5px; // Space between items
-            grid-row-gap: 13px; // Space between items
-            justify-content: center;
-            align-items: center;
-            margin-top: 15px;
-
-            .icon-item {
-                font-size: 15px;
-                color: oklch(from var(--modal-bg-color) calc(l * 1.5) c h);
-                cursor: pointer;
-                transition: color 0.3s ease;
-
-                &.selected,
-                &:hover {
-                    color: var(--main-text-color);
-                }
-            }
-        }
-
-        .delete-ws-btn-wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 10px;
-        }
     }
 
     .actions {

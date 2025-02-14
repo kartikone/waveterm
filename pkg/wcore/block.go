@@ -1,3 +1,6 @@
+// Copyright 2025, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 package wcore
 
 import (
@@ -8,8 +11,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
+	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/telemetry"
+	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -41,7 +46,6 @@ func createSubBlockObj(ctx context.Context, parentBlockId string, blockDef *wave
 		blockData := &waveobj.Block{
 			OID:         blockId,
 			ParentORef:  waveobj.MakeORef(waveobj.OType_Block, parentBlockId).String(),
-			BlockDef:    blockDef,
 			RuntimeOpts: nil,
 			Meta:        blockDef.Meta,
 		}
@@ -52,7 +56,19 @@ func createSubBlockObj(ctx context.Context, parentBlockId string, blockDef *wave
 	})
 }
 
-func CreateBlock(ctx context.Context, tabId string, blockDef *waveobj.BlockDef, rtOpts *waveobj.RuntimeOpts) (*waveobj.Block, error) {
+func CreateBlock(ctx context.Context, tabId string, blockDef *waveobj.BlockDef, rtOpts *waveobj.RuntimeOpts) (rtnBlock *waveobj.Block, rtnErr error) {
+	var blockCreated bool
+	var newBlockOID string
+	defer func() {
+		if rtnErr == nil {
+			return
+		}
+		// if there was an error, and we created the block, clean it up since the function failed
+		if blockCreated && newBlockOID != "" {
+			deleteBlockObj(ctx, newBlockOID)
+			filestore.WFS.DeleteZone(ctx, newBlockOID)
+		}
+	}()
 	if blockDef == nil {
 		return nil, fmt.Errorf("blockDef is nil")
 	}
@@ -63,8 +79,25 @@ func CreateBlock(ctx context.Context, tabId string, blockDef *waveobj.BlockDef, 
 	if err != nil {
 		return nil, fmt.Errorf("error creating block: %w", err)
 	}
+	blockCreated = true
+	newBlockOID = blockData.OID
+	// upload the files if present
+	if len(blockDef.Files) > 0 {
+		for fileName, fileDef := range blockDef.Files {
+			err := filestore.WFS.MakeFile(ctx, newBlockOID, fileName, fileDef.Meta, wshrpc.FileOpts{})
+			if err != nil {
+				return nil, fmt.Errorf("error making blockfile %q: %w", fileName, err)
+			}
+			err = filestore.WFS.WriteFile(ctx, newBlockOID, fileName, []byte(fileDef.Content))
+			if err != nil {
+				return nil, fmt.Errorf("error writing blockfile %q: %w", fileName, err)
+			}
+		}
+	}
 	go func() {
-		defer panichandler.PanicHandler("CreateBlock:telemetry")
+		defer func() {
+			panichandler.PanicHandler("CreateBlock:telemetry", recover())
+		}()
 		blockView := blockDef.Meta.GetString(waveobj.MetaKey_View, "")
 		if blockView == "" {
 			return
@@ -73,6 +106,12 @@ func CreateBlock(ctx context.Context, tabId string, blockDef *waveobj.BlockDef, 
 		defer cancelFn()
 		telemetry.UpdateActivity(tctx, wshrpc.ActivityUpdate{
 			Renderers: map[string]int{blockView: 1},
+		})
+		telemetry.RecordTEvent(tctx, &telemetrydata.TEvent{
+			Event: "action:createblock",
+			Props: telemetrydata.TEventProps{
+				BlockView: blockView,
+			},
 		})
 	}()
 	return blockData, nil
@@ -88,7 +127,6 @@ func createBlockObj(ctx context.Context, tabId string, blockDef *waveobj.BlockDe
 		blockData := &waveobj.Block{
 			OID:         blockId,
 			ParentORef:  waveobj.MakeORef(waveobj.OType_Tab, tabId).String(),
-			BlockDef:    blockDef,
 			RuntimeOpts: rtOpts,
 			Meta:        blockDef.Meta,
 		}
@@ -126,21 +164,18 @@ func DeleteBlock(ctx context.Context, blockId string, recursive bool) error {
 	log.Printf("DeleteBlock: parentBlockCount: %d", parentBlockCount)
 	parentORef := waveobj.ParseORefNoErr(block.ParentORef)
 
-	if parentORef.OType == waveobj.OType_Tab {
-		if parentBlockCount == 0 && recursive {
-			// if parent tab has no blocks, delete the tab
-			log.Printf("DeleteBlock: parent tab has no blocks, deleting tab %s", parentORef.OID)
-			parentWorkspaceId, err := wstore.DBFindWorkspaceForTabId(ctx, parentORef.OID)
-			if err != nil {
-				return fmt.Errorf("error finding workspace for tab to delete %s: %w", parentORef.OID, err)
-			}
-			newActiveTabId, err := DeleteTab(ctx, parentWorkspaceId, parentORef.OID, true)
-			if err != nil {
-				return fmt.Errorf("error deleting tab %s: %w", parentORef.OID, err)
-			}
-			SendActiveTabUpdate(ctx, parentWorkspaceId, newActiveTabId)
+	if recursive && parentORef.OType == waveobj.OType_Tab && parentBlockCount == 0 {
+		// if parent tab has no blocks, delete the tab
+		log.Printf("DeleteBlock: parent tab has no blocks, deleting tab %s", parentORef.OID)
+		parentWorkspaceId, err := wstore.DBFindWorkspaceForTabId(ctx, parentORef.OID)
+		if err != nil {
+			return fmt.Errorf("error finding workspace for tab to delete %s: %w", parentORef.OID, err)
 		}
-
+		newActiveTabId, err := DeleteTab(ctx, parentWorkspaceId, parentORef.OID, true)
+		if err != nil {
+			return fmt.Errorf("error deleting tab %s: %w", parentORef.OID, err)
+		}
+		SendActiveTabUpdate(ctx, parentWorkspaceId, newActiveTabId)
 	}
 	go blockcontroller.StopBlockController(blockId)
 	sendBlockCloseEvent(blockId)

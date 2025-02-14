@@ -1,7 +1,7 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { getApi } from "./global";
+import { atoms, getApi, globalStore } from "./global";
 
 class ContextMenuModelType {
     handlers: Map<string, () => void> = new Map(); // id -> handler
@@ -46,9 +46,10 @@ class ContextMenuModelType {
     }
 
     showContextMenu(menu: ContextMenuItem[], ev: React.MouseEvent<any>): void {
+        ev.stopPropagation();
         this.handlers.clear();
         const electronMenuItems = this._convertAndRegisterMenu(menu);
-        getApi().showContextMenu(electronMenuItems);
+        getApi().showContextMenu(globalStore.get(atoms.workspace).oid, electronMenuItems);
     }
 }
 

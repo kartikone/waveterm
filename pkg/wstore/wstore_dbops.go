@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wstore
@@ -43,6 +43,22 @@ func DBGetCount[T waveobj.WaveObj](ctx context.Context) (int, error) {
 		query := fmt.Sprintf("SELECT count(*) FROM %s", table)
 		return tx.GetInt(query), nil
 	})
+}
+
+// returns (num named workespaces, num total workspaces, error)
+func DBGetWSCounts(ctx context.Context) (int, int, error) {
+	var named, total int
+	err := WithTx(ctx, func(tx *TxWrap) error {
+		query := `SELECT count(*) FROM db_workspace WHERE COALESCE(json_extract(data, '$.name'), '') <> ''`
+		named = tx.GetInt(query)
+		query = `SELECT count(*) FROM db_workspace`
+		total = tx.GetInt(query)
+		return nil
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	return named, total, nil
 }
 
 var viewRe = regexp.MustCompile(`^[a-z0-9]{1,20}$`)
@@ -269,7 +285,9 @@ func DBDelete(ctx context.Context, otype string, id string) error {
 		return err
 	}
 	go func() {
-		defer panichandler.PanicHandler("DBDelete:filestore.DeleteZone")
+		defer func() {
+			panichandler.PanicHandler("DBDelete:filestore.DeleteZone", recover())
+		}()
 		// we spawn a go routine here because we don't want to reuse the DB connection
 		// since DBDelete is called in a transaction from DeleteTab
 		deleteCtx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)

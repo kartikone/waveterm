@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as electron from "electron";
@@ -6,11 +6,15 @@ import { getWebServerEndpoint } from "../frontend/util/endpoints";
 
 export const WaveAppPathVarName = "WAVETERM_APP_PATH";
 
+// not necessarily exact, but we use this to help get us unstuck in certain cases
+let lastCtrlShiftSate: boolean = false;
+
 export function delay(ms): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function setCtrlShift(wc: Electron.WebContents, state: boolean) {
+    lastCtrlShiftSate = state;
     wc.send("control-shift-state-update", state);
 }
 
@@ -28,6 +32,11 @@ export function handleCtrlShiftState(sender: Electron.WebContents, waveEvent: Wa
         if (waveEvent.key == "Meta") {
             if (waveEvent.control && waveEvent.shift) {
                 setCtrlShift(sender, true);
+            }
+        }
+        if (lastCtrlShiftSate) {
+            if (!waveEvent.control || !waveEvent.shift) {
+                setCtrlShift(sender, false);
             }
         }
         return;
@@ -165,4 +174,91 @@ export function ensureBoundsAreVisible(bounds: electron.Rectangle): electron.Rec
         return adjustBoundsToFitDisplay(bounds, targetDisplay);
     }
     return bounds;
+}
+
+export function waveKeyToElectronKey(waveKey: string): string {
+    const waveParts = waveKey.split(":");
+    const electronParts: Array<string> = waveParts.map((part: string) => {
+        const digitRegexpMatch = new RegExp("^c{Digit([0-9])}$").exec(part);
+        const numpadRegexpMatch = new RegExp("^c{Numpad([0-9])}$").exec(part);
+        const lowercaseCharMatch = new RegExp("^([a-z])$").exec(part);
+        if (part == "ArrowUp") {
+            return "Up";
+        }
+        if (part == "ArrowDown") {
+            return "Down";
+        }
+        if (part == "ArrowLeft") {
+            return "Left";
+        }
+        if (part == "ArrowRight") {
+            return "Right";
+        }
+        if (part == "Soft1") {
+            return "F21";
+        }
+        if (part == "Soft2") {
+            return "F22";
+        }
+        if (part == "Soft3") {
+            return "F23";
+        }
+        if (part == "Soft4") {
+            return "F24";
+        }
+        if (part == " ") {
+            return "Space";
+        }
+        if (part == "CapsLock") {
+            return "Capslock";
+        }
+        if (part == "NumLock") {
+            return "Numlock";
+        }
+        if (part == "ScrollLock") {
+            return "Scrolllock";
+        }
+        if (part == "AudioVolumeUp") {
+            return "VolumeUp";
+        }
+        if (part == "AudioVolumeDown") {
+            return "VolumeDown";
+        }
+        if (part == "AudioVolumeMute") {
+            return "VolumeMute";
+        }
+        if (part == "MediaTrackNext") {
+            return "MediaNextTrack";
+        }
+        if (part == "MediaTrackPrevious") {
+            return "MediaPreviousTrack";
+        }
+        if (part == "Decimal") {
+            return "numdec";
+        }
+        if (part == "Add") {
+            return "numadd";
+        }
+        if (part == "Subtract") {
+            return "numsub";
+        }
+        if (part == "Multiply") {
+            return "nummult";
+        }
+        if (part == "Divide") {
+            return "numdiv";
+        }
+        if (digitRegexpMatch && digitRegexpMatch.length > 1) {
+            return digitRegexpMatch[1];
+        }
+        if (numpadRegexpMatch && numpadRegexpMatch.length > 1) {
+            return `num${numpadRegexpMatch[1]}`;
+        }
+        if (lowercaseCharMatch && lowercaseCharMatch.length > 1) {
+            return lowercaseCharMatch[1].toUpperCase();
+        }
+
+        return part;
+    });
+    return electronParts.join("+");
 }

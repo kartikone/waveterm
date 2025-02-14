@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { getFileSubject } from "@/app/store/wps";
@@ -7,8 +7,8 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { PLATFORM, WOS, atoms, fetchWaveFile, getSettingsKeyAtom, globalStore, openLink } from "@/store/global";
 import * as services from "@/store/services";
-import * as util from "@/util/util";
 import { base64ToArray, fireAndForget } from "@/util/util";
+import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -41,6 +41,7 @@ let loggedWebGL = false;
 type TermWrapOptions = {
     keydownHandler?: (e: KeyboardEvent) => boolean;
     useWebGl?: boolean;
+    sendDataHandler?: (data: string) => void;
 };
 
 export class TermWrap {
@@ -50,13 +51,17 @@ export class TermWrap {
     terminal: Terminal;
     connectElem: HTMLDivElement;
     fitAddon: FitAddon;
+    searchAddon: SearchAddon;
     serializeAddon: SerializeAddon;
     mainFileSubject: SubjectWithRef<WSFileEventData>;
     loaded: boolean;
     heldData: Uint8Array[];
     handleResize_debounced: () => void;
-    isRunning: boolean;
     hasResized: boolean;
+    multiInputCallback: (data: string) => void;
+    sendDataHandler: (data: string) => void;
+    onSearchResultsDidChange?: (result: { resultIndex: number; resultCount: number }) => void;
+    private toDispose: TermTypes.IDisposable[] = [];
 
     constructor(
         blockId: string,
@@ -66,6 +71,7 @@ export class TermWrap {
     ) {
         this.loaded = false;
         this.blockId = blockId;
+        this.sendDataHandler = waveOptions.sendDataHandler;
         this.ptyOffset = 0;
         this.dataBytesProcessed = 0;
         this.hasResized = false;
@@ -73,6 +79,8 @@ export class TermWrap {
         this.fitAddon = new FitAddon();
         this.fitAddon.noScrollbar = PLATFORM == "darwin";
         this.serializeAddon = new SerializeAddon();
+        this.searchAddon = new SearchAddon();
+        this.terminal.loadAddon(this.searchAddon);
         this.terminal.loadAddon(this.fitAddon);
         this.terminal.loadAddon(this.serializeAddon);
         this.terminal.loadAddon(
@@ -94,9 +102,11 @@ export class TermWrap {
         );
         if (WebGLSupported && waveOptions.useWebGl) {
             const webglAddon = new WebglAddon();
-            webglAddon.onContextLoss(() => {
-                webglAddon.dispose();
-            });
+            this.toDispose.push(
+                webglAddon.onContextLoss(() => {
+                    webglAddon.dispose();
+                })
+            );
             this.terminal.loadAddon(webglAddon);
             if (!loggedWebGL) {
                 console.log("loaded webgl!");
@@ -119,7 +129,11 @@ export class TermWrap {
                 data = data.substring(nextSlashIdx);
             }
             setTimeout(() => {
-                services.ObjectService.UpdateObjectMeta(WOS.makeORef("block", this.blockId), { "cmd:cwd": data });
+                fireAndForget(() =>
+                    services.ObjectService.UpdateObjectMeta(WOS.makeORef("block", this.blockId), {
+                        "cmd:cwd": data,
+                    })
+                );
             }, 0);
             return true;
         });
@@ -130,23 +144,28 @@ export class TermWrap {
         this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
         this.terminal.open(this.connectElem);
         this.handleResize();
-        this.isRunning = true;
     }
 
     async initTerminal() {
         const copyOnSelectAtom = getSettingsKeyAtom("term:copyonselect");
-        this.terminal.onData(this.handleTermData.bind(this));
-        this.terminal.onSelectionChange(
-            debounce(50, () => {
-                if (!globalStore.get(copyOnSelectAtom)) {
-                    return;
-                }
-                const selectedText = this.terminal.getSelection();
-                if (selectedText.length > 0) {
-                    navigator.clipboard.writeText(selectedText);
-                }
-            })
+        this.toDispose.push(this.terminal.onData(this.handleTermData.bind(this)));
+        this.toDispose.push(this.terminal.onKey(this.onKeyHandler.bind(this)));
+        this.toDispose.push(
+            this.terminal.onSelectionChange(
+                debounce(50, () => {
+                    if (!globalStore.get(copyOnSelectAtom)) {
+                        return;
+                    }
+                    const selectedText = this.terminal.getSelection();
+                    if (selectedText.length > 0) {
+                        navigator.clipboard.writeText(selectedText);
+                    }
+                })
+            )
         );
+        if (this.onSearchResultsDidChange != null) {
+            this.toDispose.push(this.searchAddon.onDidChangeResults(this.onSearchResultsDidChange.bind(this)));
+        }
         this.mainFileSubject = getFileSubject(this.blockId, TermFileName);
         this.mainFileSubject.subscribe(this.handleNewFileSubjectData.bind(this));
         try {
@@ -157,18 +176,27 @@ export class TermWrap {
         this.runProcessIdleTimeout();
     }
 
-    setIsRunning(isRunning: boolean) {
-        this.isRunning = isRunning;
-    }
-
     dispose() {
         this.terminal.dispose();
+        this.toDispose.forEach((d) => {
+            try {
+                d.dispose();
+            } catch (_) {}
+        });
         this.mainFileSubject.release();
     }
 
     handleTermData(data: string) {
-        const b64data = util.stringToBase64(data);
-        RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data });
+        if (!this.loaded) {
+            return;
+        }
+        this.sendDataHandler?.(data);
+    }
+
+    onKeyHandler(data: { key: string; domEvent: KeyboardEvent }) {
+        if (this.multiInputCallback) {
+            this.multiInputCallback(data.key);
+        }
     }
 
     addFocusListener(focusFn: () => void) {
@@ -284,7 +312,9 @@ export class TermWrap {
         const serializedOutput = this.serializeAddon.serialize();
         const termSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
         console.log("idle timeout term", this.dataBytesProcessed, serializedOutput.length, termSize);
-        services.BlockService.SaveTerminalState(this.blockId, serializedOutput, "full", this.ptyOffset, termSize);
+        fireAndForget(() =>
+            services.BlockService.SaveTerminalState(this.blockId, serializedOutput, "full", this.ptyOffset, termSize)
+        );
         this.dataBytesProcessed = 0;
     }
 

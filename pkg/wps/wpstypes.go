@@ -1,3 +1,6 @@
+// Copyright 2025, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 package wps
 
 import "github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -12,6 +15,7 @@ const (
 	Event_Config           = "config"
 	Event_UserInput        = "userinput"
 	Event_RouteGone        = "route:gone"
+	Event_WorkspaceUpdate  = "workspace:update"
 )
 
 type WaveEvent struct {

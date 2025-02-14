@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package cmd
@@ -24,9 +24,22 @@ var debugBlockIdsCmd = &cobra.Command{
 	Hidden: true,
 }
 
+var debugSendTelemetryCmd = &cobra.Command{
+	Use:    "send-telemetry",
+	Short:  "send telemetry",
+	RunE:   debugSendTelemetryRun,
+	Hidden: true,
+}
+
 func init() {
 	debugCmd.AddCommand(debugBlockIdsCmd)
+	debugCmd.AddCommand(debugSendTelemetryCmd)
 	rootCmd.AddCommand(debugCmd)
+}
+
+func debugSendTelemetryRun(cmd *cobra.Command, args []string) error {
+	err := wshclient.SendTelemetryCommand(RpcClient, nil)
+	return err
 }
 
 func debugBlockIdsRun(cmd *cobra.Command, args []string) error {

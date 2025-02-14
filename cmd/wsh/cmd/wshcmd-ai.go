@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package cmd
@@ -19,7 +19,6 @@ import (
 var aiCmd = &cobra.Command{
 	Use:                   "ai [-] [message...]",
 	Short:                 "Send a message to an AI block",
-	Args:                  cobra.MinimumNArgs(1),
 	RunE:                  aiRun,
 	PreRunE:               preRunSetupRpcClient,
 	DisableFlagsInUseLine: true,
@@ -52,6 +51,11 @@ func aiRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	defer func() {
 		sendActivity("ai", rtnErr == nil)
 	}()
+
+	if len(args) == 0 {
+		OutputHelpMessage(cmd)
+		return fmt.Errorf("no message provided")
+	}
 
 	var stdinUsed bool
 	var message strings.Builder
@@ -138,8 +142,8 @@ func aiRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	if message.Len() == 0 {
 		return fmt.Errorf("message is empty")
 	}
-	if message.Len() > 10*1024 {
-		return fmt.Errorf("current max message size is 10k")
+	if message.Len() > 50*1024 {
+		return fmt.Errorf("current max message size is 50k")
 	}
 
 	messageData := wshrpc.AiMessageData{

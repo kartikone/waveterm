@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wconfig
@@ -20,11 +20,11 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig/defaultconfig"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 )
 
 const SettingsFile = "settings.json"
 const ConnectionsFile = "connections.json"
+const ProfilesFile = "profiles.json"
 
 const AnySchema = `
 {
@@ -33,31 +33,60 @@ const AnySchema = `
 }
 `
 
+type AiSettingsType struct {
+	AiClear         bool    `json:"ai:*,omitempty"`
+	AiPreset        string  `json:"ai:preset,omitempty"`
+	AiApiType       string  `json:"ai:apitype,omitempty"`
+	AiBaseURL       string  `json:"ai:baseurl,omitempty"`
+	AiApiToken      string  `json:"ai:apitoken,omitempty"`
+	AiName          string  `json:"ai:name,omitempty"`
+	AiModel         string  `json:"ai:model,omitempty"`
+	AiOrgID         string  `json:"ai:orgid,omitempty"`
+	AIApiVersion    string  `json:"ai:apiversion,omitempty"`
+	AiMaxTokens     float64 `json:"ai:maxtokens,omitempty"`
+	AiTimeoutMs     float64 `json:"ai:timeoutms,omitempty"`
+	AiFontSize      float64 `json:"ai:fontsize,omitempty"`
+	AiFixedFontSize float64 `json:"ai:fixedfontsize,omitempty"`
+	DisplayName     string  `json:"display:name,omitempty"`
+	DisplayOrder    float64 `json:"display:order,omitempty"`
+}
+
 type SettingsType struct {
-	AiClear      bool    `json:"ai:*,omitempty"`
-	AiPreset     string  `json:"ai:preset,omitempty"`
-	AiApiType    string  `json:"ai:apitype,omitempty"`
-	AiBaseURL    string  `json:"ai:baseurl,omitempty"`
-	AiApiToken   string  `json:"ai:apitoken,omitempty"`
-	AiName       string  `json:"ai:name,omitempty"`
-	AiModel      string  `json:"ai:model,omitempty"`
-	AiOrgID      string  `json:"ai:orgid,omitempty"`
-	AIApiVersion string  `json:"ai:apiversion,omitempty"`
-	AiMaxTokens  float64 `json:"ai:maxtokens,omitempty"`
-	AiTimeoutMs  float64 `json:"ai:timeoutms,omitempty"`
+	AppClear                      bool   `json:"app:*,omitempty"`
+	AppGlobalHotkey               string `json:"app:globalhotkey,omitempty"`
+	AppDismissArchitectureWarning bool   `json:"app:dismissarchitecturewarning,omitempty"`
+	AppDefaultNewBlock            string `json:"app:defaultnewblock,omitempty"`
 
-	TermClear          bool     `json:"term:*,omitempty"`
-	TermFontSize       float64  `json:"term:fontsize,omitempty"`
-	TermFontFamily     string   `json:"term:fontfamily,omitempty"`
-	TermTheme          string   `json:"term:theme,omitempty"`
-	TermDisableWebGl   bool     `json:"term:disablewebgl,omitempty"`
-	TermLocalShellPath string   `json:"term:localshellpath,omitempty"`
-	TermLocalShellOpts []string `json:"term:localshellopts,omitempty"`
-	TermScrollback     *int64   `json:"term:scrollback,omitempty"`
-	TermCopyOnSelect   *bool    `json:"term:copyonselect,omitempty"`
+	AiClear         bool    `json:"ai:*,omitempty"`
+	AiPreset        string  `json:"ai:preset,omitempty"`
+	AiApiType       string  `json:"ai:apitype,omitempty"`
+	AiBaseURL       string  `json:"ai:baseurl,omitempty"`
+	AiApiToken      string  `json:"ai:apitoken,omitempty"`
+	AiName          string  `json:"ai:name,omitempty"`
+	AiModel         string  `json:"ai:model,omitempty"`
+	AiOrgID         string  `json:"ai:orgid,omitempty"`
+	AIApiVersion    string  `json:"ai:apiversion,omitempty"`
+	AiMaxTokens     float64 `json:"ai:maxtokens,omitempty"`
+	AiTimeoutMs     float64 `json:"ai:timeoutms,omitempty"`
+	AiFontSize      float64 `json:"ai:fontsize,omitempty"`
+	AiFixedFontSize float64 `json:"ai:fixedfontsize,omitempty"`
 
-	EditorMinimapEnabled      bool `json:"editor:minimapenabled,omitempty"`
-	EditorStickyScrollEnabled bool `json:"editor:stickyscrollenabled,omitempty"`
+	TermClear               bool     `json:"term:*,omitempty"`
+	TermFontSize            float64  `json:"term:fontsize,omitempty"`
+	TermFontFamily          string   `json:"term:fontfamily,omitempty"`
+	TermTheme               string   `json:"term:theme,omitempty"`
+	TermDisableWebGl        bool     `json:"term:disablewebgl,omitempty"`
+	TermLocalShellPath      string   `json:"term:localshellpath,omitempty"`
+	TermLocalShellOpts      []string `json:"term:localshellopts,omitempty"`
+	TermScrollback          *int64   `json:"term:scrollback,omitempty"`
+	TermCopyOnSelect        *bool    `json:"term:copyonselect,omitempty"`
+	TermTransparency        *float64 `json:"term:transparency,omitempty"`
+	TermAllowBracketedPaste *bool    `json:"term:allowbracketedpaste,omitempty"`
+
+	EditorMinimapEnabled      bool    `json:"editor:minimapenabled,omitempty"`
+	EditorStickyScrollEnabled bool    `json:"editor:stickyscrollenabled,omitempty"`
+	EditorWordWrap            bool    `json:"editor:wordwrap,omitempty"`
+	EditorFontSize            float64 `json:"editor:fontsize,omitempty"`
 
 	WebClear               bool   `json:"web:*,omitempty"`
 	WebOpenLinksInternally bool   `json:"web:openlinksinternally,omitempty"`
@@ -73,7 +102,12 @@ type SettingsType struct {
 	AutoUpdateInstallOnQuit bool    `json:"autoupdate:installonquit,omitempty"`
 	AutoUpdateChannel       string  `json:"autoupdate:channel,omitempty"`
 
+	MarkdownFontSize      float64 `json:"markdown:fontsize,omitempty"`
+	MarkdownFixedFontSize float64 `json:"markdown:fixedfontsize,omitempty"`
+
 	PreviewShowHiddenFiles *bool `json:"preview:showhiddenfiles,omitempty"`
+
+	TabPreset string `json:"tab:preset,omitempty"`
 
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
@@ -93,18 +127,31 @@ type SettingsType struct {
 	WindowMagnifiedBlockSize            *float64 `json:"window:magnifiedblocksize,omitempty"`
 	WindowMagnifiedBlockBlurPrimaryPx   *int64   `json:"window:magnifiedblockblurprimarypx,omitempty"`
 	WindowMagnifiedBlockBlurSecondaryPx *int64   `json:"window:magnifiedblockblursecondarypx,omitempty"`
+	WindowConfirmClose                  bool     `json:"window:confirmclose,omitempty"`
+	WindowSaveLastWindow                bool     `json:"window:savelastwindow,omitempty"`
+	WindowDimensions                    string   `json:"window:dimensions,omitempty"`
+	WindowZoom                          *float64 `json:"window:zoom,omitempty"`
 
 	TelemetryClear   bool `json:"telemetry:*,omitempty"`
 	TelemetryEnabled bool `json:"telemetry:enabled,omitempty"`
 
-	ConnClear               bool `json:"conn:*,omitempty"`
-	ConnAskBeforeWshInstall bool `json:"conn:askbeforewshinstall,omitempty"`
-	ConnWshEnabled          bool `json:"conn:wshenabled,omitempty"`
+	ConnClear               bool  `json:"conn:*,omitempty"`
+	ConnAskBeforeWshInstall *bool `json:"conn:askbeforewshinstall,omitempty"`
+	ConnWshEnabled          bool  `json:"conn:wshenabled,omitempty"`
 }
 
 type ConfigError struct {
 	File string `json:"file"`
 	Err  string `json:"err"`
+}
+
+type WebBookmark struct {
+	Url          string  `json:"url"`
+	Title        string  `json:"title,omitempty"`
+	Icon         string  `json:"icon,omitempty"`
+	IconColor    string  `json:"iconcolor,omitempty"`
+	IconUrl      string  `json:"iconurl,omitempty"`
+	DisplayOrder float64 `json:"display:order,omitempty"`
 }
 
 type FullConfigType struct {
@@ -114,8 +161,55 @@ type FullConfigType struct {
 	Widgets        map[string]WidgetConfigType    `json:"widgets"`
 	Presets        map[string]waveobj.MetaMapType `json:"presets"`
 	TermThemes     map[string]TermThemeType       `json:"termthemes"`
-	Connections    map[string]wshrpc.ConnKeywords `json:"connections"`
+	Connections    map[string]ConnKeywords        `json:"connections"`
+	Bookmarks      map[string]WebBookmark         `json:"bookmarks"`
 	ConfigErrors   []ConfigError                  `json:"configerrors" configfile:"-"`
+}
+type ConnKeywords struct {
+	ConnWshEnabled          *bool  `json:"conn:wshenabled,omitempty"`
+	ConnAskBeforeWshInstall *bool  `json:"conn:askbeforewshinstall,omitempty"`
+	ConnWshPath             string `json:"conn:wshpath,omitempty"`
+	ConnShellPath           string `json:"conn:shellpath,omitempty"`
+	ConnIgnoreSshConfig     *bool  `json:"conn:ignoresshconfig,omitempty"`
+
+	DisplayHidden *bool   `json:"display:hidden,omitempty"`
+	DisplayOrder  float32 `json:"display:order,omitempty"`
+
+	TermClear      bool    `json:"term:*,omitempty"`
+	TermFontSize   float64 `json:"term:fontsize,omitempty"`
+	TermFontFamily string  `json:"term:fontfamily,omitempty"`
+	TermTheme      string  `json:"term:theme,omitempty"`
+
+	CmdEnv            map[string]string `json:"cmd:env,omitempty"`
+	CmdInitScript     string            `json:"cmd:initscript,omitempty"`
+	CmdInitScriptSh   string            `json:"cmd:initscript.sh,omitempty"`
+	CmdInitScriptBash string            `json:"cmd:initscript.bash,omitempty"`
+	CmdInitScriptZsh  string            `json:"cmd:initscript.zsh,omitempty"`
+	CmdInitScriptPwsh string            `json:"cmd:initscript.pwsh,omitempty"`
+	CmdInitScriptFish string            `json:"cmd:initscript.fish,omitempty"`
+
+	SshUser                         *string  `json:"ssh:user,omitempty"`
+	SshHostName                     *string  `json:"ssh:hostname,omitempty"`
+	SshPort                         *string  `json:"ssh:port,omitempty"`
+	SshIdentityFile                 []string `json:"ssh:identityfile,omitempty"`
+	SshBatchMode                    *bool    `json:"ssh:batchmode,omitempty"`
+	SshPubkeyAuthentication         *bool    `json:"ssh:pubkeyauthentication,omitempty"`
+	SshPasswordAuthentication       *bool    `json:"ssh:passwordauthentication,omitempty"`
+	SshKbdInteractiveAuthentication *bool    `json:"ssh:kbdinteractiveauthentication,omitempty"`
+	SshPreferredAuthentications     []string `json:"ssh:preferredauthentications,omitempty"`
+	SshAddKeysToAgent               *bool    `json:"ssh:addkeystoagent,omitempty"`
+	SshIdentityAgent                *string  `json:"ssh:identityagent,omitempty"`
+	SshIdentitiesOnly               *bool    `json:"ssh:identitiesonly,omitempty"`
+	SshProxyJump                    []string `json:"ssh:proxyjump,omitempty"`
+	SshUserKnownHostsFile           []string `json:"ssh:userknownhostsfile,omitempty"`
+	SshGlobalKnownHostsFile         []string `json:"ssh:globalknownhostsfile,omitempty"`
+}
+
+func DefaultBoolPtr(arg *bool, def bool) bool {
+	if arg == nil {
+		return def
+	}
+	return *arg
 }
 
 func goBackWS(barr []byte, offset int) int {
@@ -293,6 +387,8 @@ func readConfigPart(partName string, simpleMerge bool) (waveobj.MetaMapType, []C
 	return mergeMetaMap(rtn, homeConfigs, simpleMerge), allErrs
 }
 
+// this function should only be called by the wconfig code.
+// in golang code, the best way to get the current config is via the watcher -- wconfig.GetWatcher().GetFullConfig()
 func ReadFullConfig() FullConfigType {
 	var fullConfig FullConfigType
 	configRType := reflect.TypeOf(fullConfig)
@@ -518,12 +614,14 @@ func SetConnectionsConfigValue(connName string, toMerge waveobj.MetaMapType) err
 }
 
 type WidgetConfigType struct {
-	DisplayOrder float64          `json:"display:order,omitempty"`
-	Icon         string           `json:"icon,omitempty"`
-	Color        string           `json:"color,omitempty"`
-	Label        string           `json:"label,omitempty"`
-	Description  string           `json:"description,omitempty"`
-	BlockDef     waveobj.BlockDef `json:"blockdef"`
+	DisplayOrder  float64          `json:"display:order,omitempty"`
+	DisplayHidden bool             `json:"display:hidden,omitempty"`
+	Icon          string           `json:"icon,omitempty"`
+	Color         string           `json:"color,omitempty"`
+	Label         string           `json:"label,omitempty"`
+	Description   string           `json:"description,omitempty"`
+	Magnified     bool             `json:"magnified,omitempty"`
+	BlockDef      waveobj.BlockDef `json:"blockdef"`
 }
 
 type MimeTypeConfigType struct {

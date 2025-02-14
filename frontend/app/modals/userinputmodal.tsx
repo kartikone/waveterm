@@ -1,13 +1,13 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { Modal } from "@/app/modals/modal";
 import { Markdown } from "@/element/markdown";
 import { modalsModel } from "@/store/modalmodel";
 import * as keyutil from "@/util/keyutil";
-import { UserInputService } from "../store/services";
-
+import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UserInputService } from "../store/services";
 import "./userinputmodal.scss";
 
 const UserInputModal = (userInputRequest: UserInputRequest) => {
@@ -16,33 +16,38 @@ const UserInputModal = (userInputRequest: UserInputRequest) => {
     const checkboxRef = useRef<HTMLInputElement>();
 
     const handleSendErrResponse = useCallback(() => {
-        UserInputService.SendUserInputResponse({
-            type: "userinputresp",
-            requestid: userInputRequest.requestid,
-            errormsg: "Canceled by the user",
-        });
+        fireAndForget(() =>
+            UserInputService.SendUserInputResponse({
+                type: "userinputresp",
+                requestid: userInputRequest.requestid,
+                errormsg: "Canceled by the user",
+            })
+        );
         modalsModel.popModal();
     }, [responseText, userInputRequest]);
 
     const handleSendText = useCallback(() => {
-        UserInputService.SendUserInputResponse({
-            type: "userinputresp",
-            requestid: userInputRequest.requestid,
-            text: responseText,
-            checkboxstat: checkboxRef?.current?.checked ?? false,
-        });
-        modalsModel.popModal();
-    }, [responseText, userInputRequest]);
-    console.log("bar");
-
-    const handleSendConfirm = useCallback(
-        (response: boolean) => {
+        fireAndForget(() =>
             UserInputService.SendUserInputResponse({
                 type: "userinputresp",
                 requestid: userInputRequest.requestid,
-                confirm: response,
+                text: responseText,
                 checkboxstat: checkboxRef?.current?.checked ?? false,
-            });
+            })
+        );
+        modalsModel.popModal();
+    }, [responseText, userInputRequest]);
+
+    const handleSendConfirm = useCallback(
+        (response: boolean) => {
+            fireAndForget(() =>
+                UserInputService.SendUserInputResponse({
+                    type: "userinputresp",
+                    requestid: userInputRequest.requestid,
+                    confirm: response,
+                    checkboxstat: checkboxRef?.current?.checked ?? false,
+                })
+            );
             modalsModel.popModal();
         },
         [userInputRequest]
@@ -58,7 +63,6 @@ const UserInputModal = (userInputRequest: UserInputRequest) => {
                 break;
         }
     }, [handleSendConfirm, handleSendText, userInputRequest.responsetype]);
-    console.log("baz");
 
     const handleKeyDown = useCallback(
         (waveEvent: WaveKeyboardEvent): boolean => {
@@ -80,7 +84,6 @@ const UserInputModal = (userInputRequest: UserInputRequest) => {
         }
         return <span className="userinput-text">{userInputRequest.querytext}</span>;
     }, [userInputRequest.markdown, userInputRequest.querytext]);
-    console.log("foobarbaz");
 
     const inputBox = useMemo(() => {
         if (userInputRequest.responsetype === "confirm") {
@@ -98,7 +101,6 @@ const UserInputModal = (userInputRequest: UserInputRequest) => {
             />
         );
     }, [userInputRequest.responsetype, userInputRequest.publictext, responseText, handleKeyDown, setResponseText]);
-    console.log("mem1");
 
     const optionalCheckbox = useMemo(() => {
         if (userInputRequest.checkboxmsg == "") {
@@ -118,7 +120,6 @@ const UserInputModal = (userInputRequest: UserInputRequest) => {
             </div>
         );
     }, []);
-    console.log("mem2");
 
     useEffect(() => {
         let timeout: ReturnType<typeof setTimeout>;
@@ -133,7 +134,6 @@ const UserInputModal = (userInputRequest: UserInputRequest) => {
         }
         return () => clearTimeout(timeout);
     }, [countdown]);
-    console.log("count");
 
     const handleNegativeResponse = useCallback(() => {
         switch (userInputRequest.responsetype) {
@@ -145,7 +145,6 @@ const UserInputModal = (userInputRequest: UserInputRequest) => {
                 break;
         }
     }, [userInputRequest.responsetype, handleSendErrResponse, handleSendConfirm]);
-    console.log("before end");
 
     return (
         <Modal

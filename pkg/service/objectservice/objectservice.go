@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package objectservice
@@ -12,6 +12,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/tsgen/tsgenmeta"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
@@ -142,9 +143,9 @@ func (svc *ObjectService) UpdateObjectMeta(uiContext waveobj.UIContext, orefStr 
 	if err != nil {
 		return nil, fmt.Errorf("error parsing object reference: %w", err)
 	}
-	err = wstore.UpdateObjectMeta(ctx, *oref, meta)
+	err = wstore.UpdateObjectMeta(ctx, *oref, meta, false)
 	if err != nil {
-		return nil, fmt.Errorf("error updateing %q meta: %w", orefStr, err)
+		return nil, fmt.Errorf("error updating %q meta: %w", orefStr, err)
 	}
 	return waveobj.ContextGetUpdatesRtn(ctx), nil
 }
@@ -173,6 +174,10 @@ func (svc *ObjectService) UpdateObject(uiContext waveobj.UIContext, waveObj wave
 	err = wstore.DBUpdate(ctx, waveObj)
 	if err != nil {
 		return nil, fmt.Errorf("error updating object: %w", err)
+	}
+	if (waveObj.GetOType() == waveobj.OType_Workspace) && (waveObj.(*waveobj.Workspace).Name != "") {
+		wps.Broker.Publish(wps.WaveEvent{
+			Event: wps.Event_WorkspaceUpdate})
 	}
 	if returnUpdates {
 		return waveobj.ContextGetUpdatesRtn(ctx), nil
