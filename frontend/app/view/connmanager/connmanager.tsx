@@ -40,7 +40,7 @@ const StatusIcon: React.FC<{ status: ConnStatus }> = ({ status }) => {
     return (
         <div className="relative inline-flex items-center">
             <div
-                className={`w-3 h-3 rounded-full ${getStatusStyle()}`}
+                className={`w-2 h-2 rounded-full ${getStatusStyle()}`}
                 style={{ backgroundColor: "currentColor" }}
                 title={status.status === "error" && status.error ? status.error : status.status}
             />
@@ -50,17 +50,25 @@ const StatusIcon: React.FC<{ status: ConnStatus }> = ({ status }) => {
 
 const ActionButton: React.FC<{
     onClick: () => void;
-    variant?: "primary" | "secondary";
-    children: React.ReactNode;
-}> = ({ onClick, variant = "secondary", children }) => (
+    isIcon?: boolean;
+    children?: React.ReactNode;
+}> = ({ onClick, isIcon = false, children }) => (
     <button
         onClick={onClick}
-        className={`px-3 py-1.5 text-sm rounded border border-border
+        className={`
+            border border-border rounded transition-colors duration-200 flex items-center justify-center
             ${
-                variant === "primary" ? "bg-accent text-white hover:bg-accent/90" : "bg-transparent hover:bg-hoverbg"
-            } transition-colors duration-200`}
+                isIcon
+                    ? "w-7 h-7 p-0 hover:bg-hoverbg" // Smaller 1:1 icon button
+                    : "px-2 py-1 text-xs hover:bg-success/10 hover:border-success hover:text-success"
+            }
+        `}
     >
-        {children}
+        {isIcon ? (
+            <i className="text-sm leading-none">{children}</i> // Ensures icons remain properly sized
+        ) : (
+            children
+        )}
     </button>
 );
 
@@ -144,58 +152,58 @@ const ConnManagerView: ViewComponent = ({ blockId, model }) => {
         <div className="h-full">
             <OverlayScrollbarsComponent defer className="h-full">
                 <div className="p-4">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-border">
-                                <th className="text-left p-2 w-16">Status</th>
-                                <th className="text-left p-2 w-24">Type</th>
-                                <th className="text-left p-2">Connection</th>
-                                <th className="text-right p-2 w-48">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {connections.map((conn) => (
-                                <tr key={conn.name} className="border-b border-border hover:bg-hoverbg">
-                                    <td className="p-2">
-                                        <StatusIcon status={conn.status} />
-                                    </td>
-                                    <td className="p-2">{conn.type}</td>
-                                    <td className="p-2">
-                                        <span
-                                            style={{
-                                                color:
-                                                    conn.status.status === "connected"
-                                                        ? `var(--conn-icon-color-${conn.colorNum})`
-                                                        : undefined,
-                                            }}
-                                        >
-                                            {conn.name}
-                                        </span>
-                                    </td>
-                                    <td className="p-2 text-right">
-                                        <div className="flex justify-end gap-2">
-                                            {conn.status.status === "connected" ? (
-                                                <ActionButton
-                                                    onClick={() => handleDisconnect(conn.name)}
-                                                    variant="primary"
-                                                >
-                                                    Disconnect
-                                                </ActionButton>
-                                            ) : (
-                                                <ActionButton
-                                                    onClick={() => handleConnect(conn.name)}
-                                                    variant="primary"
-                                                >
-                                                    {conn.status.status === "init" ? "Connect" : "Reconnect"}
-                                                </ActionButton>
-                                            )}
-                                            <ActionButton onClick={() => handleEdit(conn.name)}>Edit</ActionButton>
-                                        </div>
-                                    </td>
+                    <div className="min-w-[600px] overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-border">
+                                    <th className="text-left p-2 w-16">Status</th>
+                                    <th className="text-left p-2 w-12">Type</th>
+                                    <th className="text-left p-2">Connection</th>
+                                    <th className="text-right p-2 w-32">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {connections.map((conn) => (
+                                    <tr key={conn.name} className="border-b border-border hover:bg-hoverbg">
+                                        <td className="p-2">
+                                            <StatusIcon status={conn.status} />
+                                        </td>
+                                        <td className="p-2">{conn.type}</td>
+                                        <td className="p-2 text-left">
+                                            <span
+                                                className="truncate"
+                                                style={{
+                                                    color:
+                                                        conn.status.status === "connected"
+                                                            ? `var(--conn-icon-color-${conn.colorNum})`
+                                                            : undefined,
+                                                }}
+                                                title={conn.name}
+                                            >
+                                                {conn.name}
+                                            </span>
+                                        </td>
+                                        <td className="p-2 text-right">
+                                            <div className="flex justify-end items-center gap-2">
+                                                {conn.status.status === "connected" ? (
+                                                    <ActionButton onClick={() => handleDisconnect(conn.name)}>
+                                                        Disconnect
+                                                    </ActionButton>
+                                                ) : (
+                                                    <ActionButton onClick={() => handleConnect(conn.name)}>
+                                                        {conn.status.status === "init" ? "Connect" : "Reconnect"}
+                                                    </ActionButton>
+                                                )}
+                                                <ActionButton onClick={() => handleEdit(conn.name)} isIcon>
+                                                    <i className="fa fa-pencil text-xs fa-fw" />
+                                                </ActionButton>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </OverlayScrollbarsComponent>
         </div>
