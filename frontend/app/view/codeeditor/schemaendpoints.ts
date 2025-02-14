@@ -15,6 +15,9 @@ allFilepaths.set(`${getWebServerEndpoint()}/schema/settings.json`, [`${getApi().
 allFilepaths.set(`${getWebServerEndpoint()}/schema/connections.json`, [`${getApi().getConfigDir()}/connections.json`]);
 allFilepaths.set(`${getWebServerEndpoint()}/schema/aipresets.json`, [`${getApi().getConfigDir()}/presets/ai.json`]);
 allFilepaths.set(`${getWebServerEndpoint()}/schema/widgets.json`, [`${getApi().getConfigDir()}/widgets.json`]);
+allFilepaths.set(`${getWebServerEndpoint()}/schema/bookmarkpresets.json`, [
+    `${getApi().getConfigDir()}/presets/bookmarks.json`,
+]);
 
 async function getSchemaEndpointInfo(endpoint: string): Promise<EndpointInfo> {
     let schema: Object;

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "WebBookmark": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "iconcolor": {
+          "type": "string"
+        },
+        "iconurl": {
+          "type": "string"
+        },
+        "display:order": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    }
+  },
+  "additionalProperties": {
+    "$ref": "#/$defs/WebBookmark"
+  },
+  "type": "object"
+}

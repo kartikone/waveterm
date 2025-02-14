@@ -18,6 +18,7 @@ const WaveSchemaSettingsFileName = "schema/settings.json"
 const WaveSchemaConnectionsFileName = "schema/connections.json"
 const WaveSchemaAiPresetsFileName = "schema/aipresets.json"
 const WaveSchemaWidgetsFileName = "schema/widgets.json"
+const WaveSchemaBookmarkPresetsFileName = "schema/bookmarkpresets.json"
 
 func generateSchema(template any, dir string) error {
 	settingsSchema := jsonschema.Reflect(template)
@@ -58,5 +59,10 @@ func main() {
 	err = generateSchema(&widgetsTemplate, WaveSchemaWidgetsFileName)
 	if err != nil {
 		log.Fatalf("widgets schema error: %v", err)
+	}
+	bookmarkPresetsTemplate := make(map[string]wconfig.WebBookmark)
+	err = generateSchema(&bookmarkPresetsTemplate, WaveSchemaBookmarkPresetsFileName)
+	if err != nil {
+		log.Fatalf("bookmark presets schema error: %v", err)
 	}
 }
