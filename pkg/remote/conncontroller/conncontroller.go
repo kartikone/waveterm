@@ -81,10 +81,56 @@ func GetAllConnStatus() []wshrpc.ConnStatus {
 	globalLock.Lock()
 	defer globalLock.Unlock()
 
+	// Get the config for checking wsh settings
+	config := wconfig.GetWatcher().GetFullConfig()
+
+	// Create a map to track processed connections
+	processedConns := make(map[string]bool)
 	var connStatuses []wshrpc.ConnStatus
+
+	// First, process all active connections from clientControllerMap
 	for _, conn := range clientControllerMap {
-		connStatuses = append(connStatuses, conn.DeriveConnStatus())
+		status := conn.DeriveConnStatus()
+		connStatuses = append(connStatuses, status)
+		processedConns[conn.GetName()] = true
 	}
+
+	// Get connections from internal config
+	internalConnections := GetConnectionsFromInternalConfig()
+
+	// Get connections from SSH config
+	sshConfigConnections, err := GetConnectionsFromConfig()
+	if err != nil {
+		log.Printf("warning: error getting SSH config connections: %v", err)
+		sshConfigConnections = []string{} // fallback to empty list on error
+	}
+
+	// Process all connections from both sources
+	for _, connList := range [][]string{internalConnections, sshConfigConnections} {
+		for _, connName := range connList {
+			if processedConns[connName] {
+				continue // Skip if already processed
+			}
+
+			// Create blank status for this connection
+			status := wshrpc.ConnStatus{
+				Status:     Status_Init,
+				Connection: connName,
+				Connected:  false,
+			}
+
+			// Set WshEnabled based on config
+			wshenabled := true // default value
+			if connConfig, exists := config.Connections[connName]; exists && connConfig.ConnWshEnabled != nil {
+				wshenabled = *connConfig.ConnWshEnabled
+			}
+			status.WshEnabled = wshenabled
+
+			connStatuses = append(connStatuses, status)
+			processedConns[connName] = true
+		}
+	}
+
 	return connStatuses
 }
 
@@ -922,35 +968,28 @@ func GetConnectionsList() ([]string, error) {
 	existing := GetAllConnStatus()
 	var currentlyRunning []string
 	var hasConnected []string
+	var otherConns []string
 
-	// populate all lists
+	// Categorize connections based on their status
 	for _, stat := range existing {
 		if stat.Connected {
 			currentlyRunning = append(currentlyRunning, stat.Connection)
-		}
-
-		if stat.HasConnected {
+		} else if stat.HasConnected {
 			hasConnected = append(hasConnected, stat.Connection)
+		} else {
+			otherConns = append(otherConns, stat.Connection)
 		}
 	}
 
-	fromInternal := GetConnectionsFromInternalConfig()
-
-	fromConfig, err := GetConnectionsFromConfig()
-	if err != nil {
-		// this is not a fatal error. do not return
-		log.Printf("warning: no connections from ssh config found: %v", err)
-	}
-
-	// sort into one final list and remove duplicates
+	// Combine lists in priority order, removing duplicates
 	alreadyUsed := make(map[string]struct{})
 	var connList []string
 
-	for _, subList := range [][]string{currentlyRunning, hasConnected, fromInternal, fromConfig} {
-		for _, pattern := range subList {
-			if _, used := alreadyUsed[pattern]; !used {
-				connList = append(connList, pattern)
-				alreadyUsed[pattern] = struct{}{}
+	for _, subList := range [][]string{currentlyRunning, hasConnected, otherConns} {
+		for _, conn := range subList {
+			if _, used := alreadyUsed[conn]; !used {
+				connList = append(connList, conn)
+				alreadyUsed[conn] = struct{}{}
 			}
 		}
 	}
