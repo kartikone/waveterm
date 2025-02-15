@@ -79,6 +79,10 @@ func createMergedConnections(connName string, toMerge waveobj.MetaMapType) (wave
 	if m == nil {
 		m = make(waveobj.MetaMapType)
 	}
+	if toMerge == nil {
+		delete(m, connName)
+		return m, nil
+	}
 	connData := m.GetMap(connName)
 	if connData == nil {
 		connData = make(waveobj.MetaMapType)
