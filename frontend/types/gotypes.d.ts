@@ -473,6 +473,12 @@ declare global {
         configerrors: ConfigError[];
     };
 
+    // wshrpc.JsonCompare
+    type JsonCompare = {
+        original: MetaType;
+        modified: MetaType;
+    };
+
     // waveobj.LayoutActionData
     type LayoutActionData = {
         actiontype: string;

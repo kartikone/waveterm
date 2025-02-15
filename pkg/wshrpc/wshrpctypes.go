@@ -124,6 +124,7 @@ const (
 	Command_Notify           = "notify"
 	Command_FocusWindow      = "focuswindow"
 	Command_GetUpdateChannel = "getupdatechannel"
+	Command_CreateJsonPatch  = "createjsonpatch"
 
 	Command_VDomCreateContext   = "vdomcreatecontext"
 	Command_VDomAsyncInitiation = "vdomasyncinitiation"
@@ -234,6 +235,7 @@ type WshRpcInterface interface {
 
 	WorkspaceListCommand(ctx context.Context) ([]WorkspaceInfoData, error)
 	GetUpdateChannelCommand(ctx context.Context) (string, error)
+	CreateJsonPatchCommand(ctx context.Context, jsonCompare JsonCompare) (string, error)
 
 	// terminal
 	VDomCreateContextCommand(ctx context.Context, data vdom.VDomCreateContext) (*waveobj.ORef, error)
@@ -762,4 +764,9 @@ type SuggestionType struct {
 	FilePath     string `json:"file:path,omitempty"`
 	FileName     string `json:"file:name,omitempty"`
 	UrlUrl       string `json:"url:url,omitempty"`
+}
+
+type JsonCompare struct {
+	Original waveobj.MetaMapType `json:"original"`
+	Modified waveobj.MetaMapType `json:"modified"`
 }

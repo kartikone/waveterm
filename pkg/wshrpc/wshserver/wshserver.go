@@ -41,6 +41,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wsaveconfig"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wsl"
@@ -516,7 +517,7 @@ func (ws *WshServer) SetConfigCommand(ctx context.Context, data wshrpc.MetaSetti
 
 func (ws *WshServer) SetConnectionsConfigCommand(ctx context.Context, data wshrpc.ConnConfigRequest) error {
 	log.Printf("SET CONNECTIONS CONFIG: %v\n", data)
-	return wconfig.SetConnectionsConfigValue(data.Host, data.MetaMapType)
+	return wsaveconfig.SetConnectionsConfigValue(data.Host, data.MetaMapType)
 }
 
 func (ws *WshServer) GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error) {

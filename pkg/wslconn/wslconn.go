@@ -28,6 +28,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wsaveconfig"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wsl"
@@ -421,7 +422,7 @@ func (conn *WslConn) getPermissionToInstallWsh(ctx context.Context, clientDispla
 	meta := make(map[string]any)
 	meta["conn:wshenabled"] = response.Confirm
 	conn.Infof(ctx, "writing conn:wshenabled=%v to connections.json\n", response.Confirm)
-	err = wconfig.SetConnectionsConfigValue(conn.GetName(), meta)
+	err = wsaveconfig.SetConnectionsConfigValue(conn.GetName(), meta)
 	if err != nil {
 		log.Printf("warning: error writing to connections file: %v", err)
 	}
@@ -680,7 +681,7 @@ func (conn *WslConn) persistWshInstalled(ctx context.Context, result WshCheckRes
 	}
 	meta := make(map[string]any)
 	meta["conn:wshenabled"] = result.WshEnabled
-	err := wconfig.SetConnectionsConfigValue(conn.GetName(), meta)
+	err := wsaveconfig.SetConnectionsConfigValue(conn.GetName(), meta)
 	if err != nil {
 		conn.Infof(ctx, "WARN could not write conn:wshenabled=%v to connections.json: %v\n", result.WshEnabled, err)
 		log.Printf("warning: error writing to connections file: %v", err)

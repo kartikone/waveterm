@@ -5,6 +5,7 @@ import { WindowService } from "@/app/store/services";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { Notification } from "electron";
 import { getResolvedUpdateChannel } from "emain/updater";
+import { createPatch } from "rfc6902";
 import { RpcResponseHelper, WshClient } from "../frontend/app/store/wshclient";
 import { getWebContentsByBlockId, webGetSelector } from "./emain-web";
 import { createBrowserWindow, getWaveWindowById, getWaveWindowByWorkspaceId } from "./emain-window";
@@ -66,6 +67,11 @@ export class ElectronWshClientType extends WshClient {
     //         workspaceMenu.submenu = Menu.buildFromTemplate(updatedWorkspaceMenu);
     //     });
     // }
+
+    async handle_createjsonpatch(rh: RpcResponseHelper, jsonCompare: JsonCompare): Promise<string> {
+        const patch = createPatch(jsonCompare.original, jsonCompare.modified);
+        return JSON.stringify(patch);
+    }
 }
 
 export let ElectronWshClient: ElectronWshClientType;

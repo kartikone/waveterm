@@ -92,6 +92,11 @@ class RpcApiType {
         return client.wshRpcCall("createblock", data, opts);
     }
 
+    // command "createjsonpatch" [call]
+    CreateJsonPatchCommand(client: WshClient, data: JsonCompare, opts?: RpcOpts): Promise<string> {
+        return client.wshRpcCall("createjsonpatch", data, opts);
+    }
+
     // command "createsubblock" [call]
     CreateSubBlockCommand(client: WshClient, data: CommandCreateSubBlockData, opts?: RpcOpts): Promise<ORef> {
         return client.wshRpcCall("createsubblock", data, opts);

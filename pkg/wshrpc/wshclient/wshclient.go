@@ -118,6 +118,12 @@ func CreateBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandCreateBlockData, o
 	return resp, err
 }
 
+// command "createjsonpatch", wshserver.CreateJsonPatchCommand
+func CreateJsonPatchCommand(w *wshutil.WshRpc, data wshrpc.JsonCompare, opts *wshrpc.RpcOpts) (string, error) {
+	resp, err := sendRpcRequestCallHelper[string](w, "createjsonpatch", data, opts)
+	return resp, err
+}
+
 // command "createsubblock", wshserver.CreateSubBlockCommand
 func CreateSubBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandCreateSubBlockData, opts *wshrpc.RpcOpts) (waveobj.ORef, error) {
 	resp, err := sendRpcRequestCallHelper[waveobj.ORef](w, "createsubblock", data, opts)
