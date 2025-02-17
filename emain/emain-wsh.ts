@@ -70,7 +70,7 @@ export class ElectronWshClientType extends WshClient {
 
     async handle_createjsonpatch(rh: RpcResponseHelper, jsonCompare: JsonCompare): Promise<string> {
         const patch = createPatch(jsonCompare.original, jsonCompare.modified);
-        return JSON.stringify(patch);
+        return JSON.stringify(patch, null, 4);
     }
 }
 
