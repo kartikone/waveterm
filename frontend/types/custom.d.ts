@@ -101,6 +101,8 @@ declare global {
         sendLog: (log: string) => void;
         onQuicklook: (filePath: string) => void;
         openNativePath(filePath: string): void;
+        captureScreenshot(rect: Electron.Rectangle): Promise<string>;
+        setKeyboardChordMode: () => void;
     };
 
     type ElectronContextMenuItem = {
@@ -290,6 +292,9 @@ declare global {
         // If true, filters out 'nowsh' connections (when managing connections)
         filterOutNowsh?: jotai.Atom<boolean>;
 
+        // if true, show s3 connections in picker
+        showS3?: jotai.Atom<boolean>;
+
         // If true, removes padding inside the block content area.
         noPadding?: jotai.Atom<boolean>;
 
@@ -427,6 +432,21 @@ declare global {
         uri: string;
         absParent: string;
         relName: string;
+        isDir: boolean;
+    };
+
+    type ErrorButtonDef = {
+        text: string;
+        onClick: () => void;
+    };
+
+    type ErrorMsg = {
+        status: string;
+        text: string;
+        level?: "error" | "warning";
+        buttons?: Array<ErrorButtonDef>;
+        closeAction?: () => void;
+        showDismiss?: boolean;
     };
 }
 

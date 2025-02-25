@@ -5,10 +5,21 @@ package fstype
 
 import (
 	"context"
+	"os"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/remote/connparse"
 	"github.com/wavetermdev/waveterm/pkg/util/iochan/iochantypes"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+)
+
+const (
+	DefaultTimeout                     = 30 * time.Second
+	FileMode               os.FileMode = 0644
+	DirMode                os.FileMode = 0755 | os.ModeDir
+	RecursiveRequiredError             = "recursive flag must be set for directory operations"
+	MergeRequiredError                 = "directory already exists at %q, set overwrite flag to delete the existing contents or set merge flag to merge the contents"
+	OverwriteRequiredError             = "file already exists at %q, set overwrite flag to delete the existing file"
 )
 
 type FileShareClient interface {
@@ -32,14 +43,16 @@ type FileShareClient interface {
 	Mkdir(ctx context.Context, conn *connparse.Connection) error
 	// Move moves the file within the same connection
 	MoveInternal(ctx context.Context, srcConn, destConn *connparse.Connection, opts *wshrpc.FileCopyOpts) error
-	// Copy copies the file within the same connection
-	CopyInternal(ctx context.Context, srcConn, destConn *connparse.Connection, opts *wshrpc.FileCopyOpts) error
-	// CopyRemote copies the file between different connections
-	CopyRemote(ctx context.Context, srcConn, destConn *connparse.Connection, srcClient FileShareClient, opts *wshrpc.FileCopyOpts) error
+	// Copy copies the file within the same connection. Returns whether the copy source was a directory
+	CopyInternal(ctx context.Context, srcConn, destConn *connparse.Connection, opts *wshrpc.FileCopyOpts) (bool, error)
+	// CopyRemote copies the file between different connections. Returns whether the copy source was a directory
+	CopyRemote(ctx context.Context, srcConn, destConn *connparse.Connection, srcClient FileShareClient, opts *wshrpc.FileCopyOpts) (bool, error)
 	// Delete deletes the entry at the given path
 	Delete(ctx context.Context, conn *connparse.Connection, recursive bool) error
 	// Join joins the given parts to the connection path
-	Join(ctx context.Context, conn *connparse.Connection, parts ...string) (string, error)
+	Join(ctx context.Context, conn *connparse.Connection, parts ...string) (*wshrpc.FileInfo, error)
 	// GetConnectionType returns the type of connection for the fileshare
 	GetConnectionType() string
+	// GetCapability returns the capability of the fileshare
+	GetCapability() wshrpc.FileShareCapability
 }

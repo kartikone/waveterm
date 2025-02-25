@@ -12,7 +12,7 @@ interface SuggestionControlProps {
     anchorRef: React.RefObject<HTMLElement>;
     isOpen: boolean;
     onClose: () => void;
-    onSelect: (item: SuggestionType, queryStr: string) => void;
+    onSelect: (item: SuggestionType, queryStr: string) => boolean;
     onTab?: (item: SuggestionType, queryStr: string) => string;
     fetchSuggestions: SuggestionsFnType;
     className?: string;
@@ -30,13 +30,16 @@ const SuggestionControl: React.FC<SuggestionControlProps> = ({
     isOpen,
     onClose,
     onSelect,
+    onTab,
     fetchSuggestions,
     className,
     children,
 }) => {
     if (!isOpen || !anchorRef.current || !fetchSuggestions) return null;
 
-    return <SuggestionControlInner {...{ anchorRef, onClose, onSelect, fetchSuggestions, className, children }} />;
+    return (
+        <SuggestionControlInner {...{ anchorRef, onClose, onSelect, onTab, fetchSuggestions, className, children }} />
+    );
 };
 
 function highlightPositions(target: string, positions: number[]): ReactNode[] {
@@ -232,22 +235,44 @@ const SuggestionControlInner: React.FC<SuggestionControlInnerProps> = ({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [onClose, anchorRef]);
 
+    useEffect(() => {
+        if (dropdownRef.current) {
+            const children = dropdownRef.current.children;
+            if (children[selectedIndex]) {
+                (children[selectedIndex] as HTMLElement).scrollIntoView({
+                    behavior: "auto",
+                    block: "nearest",
+                });
+            }
+        }
+    }, [selectedIndex]);
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "ArrowDown") {
             e.preventDefault();
+            e.stopPropagation();
             setSelectedIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
+            e.stopPropagation();
             setSelectedIndex((prev) => Math.max(prev - 1, 0));
-        } else if (e.key === "Enter" && selectedIndex >= 0) {
+        } else if (e.key === "Enter") {
             e.preventDefault();
-            onSelect(suggestions[selectedIndex], query);
-            onClose();
+            e.stopPropagation();
+            let suggestion: SuggestionType = null;
+            if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                suggestion = suggestions[selectedIndex];
+            }
+            if (onSelect(suggestion, query)) {
+                onClose();
+            }
         } else if (e.key === "Escape") {
             e.preventDefault();
+            e.stopPropagation();
             onClose();
         } else if (e.key === "Tab") {
             e.preventDefault();
+            e.stopPropagation();
             const suggestion = suggestions[selectedIndex];
             if (suggestion != null) {
                 const tabResult = onTab?.(suggestion, query);
@@ -255,6 +280,14 @@ const SuggestionControlInner: React.FC<SuggestionControlInnerProps> = ({
                     setQuery(tabResult);
                 }
             }
+        } else if (e.key === "PageDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            setSelectedIndex((prev) => Math.min(prev + 10, suggestions.length - 1));
+        } else if (e.key === "PageUp") {
+            e.preventDefault();
+            e.stopPropagation();
+            setSelectedIndex((prev) => Math.max(prev - 10, 0));
         }
     };
     return (

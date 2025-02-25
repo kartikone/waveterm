@@ -127,12 +127,10 @@ function createS3SuggestionItems(
     // behavior
     return s3Profiles.map((profileName) => {
         const connStatus = connStatusMap.get(profileName);
-        const connColorNum = computeConnColorNum(connStatus);
         const item: SuggestionConnectionItem = {
             status: "connected",
-            icon: "arrow-right-arrow-left",
-            iconColor:
-                connStatus?.status == "connected" ? `var(--conn-icon-color-${connColorNum})` : "var(--grey-text-color)",
+            icon: "database",
+            iconColor: "var(--accent-color)",
             value: profileName,
             label: profileName,
             current: profileName == connection,
@@ -348,6 +346,7 @@ const ChangeConnectionBlockModal = React.memo(
         const connStatusMap = new Map<string, ConnStatus>();
         const fullConfig = jotai.useAtomValue(atoms.fullConfigAtom);
         let filterOutNowsh = util.useAtomValueSafe(viewModel.filterOutNowsh) ?? true;
+        const showS3 = util.useAtomValueSafe(viewModel.showS3) ?? false;
 
         let maxActiveConnNum = 1;
         for (const conn of allConnStatus) {
@@ -377,13 +376,10 @@ const ChangeConnectionBlockModal = React.memo(
                     // typeahead was opened. good candidate for verbose log level.
                     //console.log("unable to load wsl list from backend. using blank list: ", e)
                 });
-            /////////
-            // TODO-S3
-            // this needs an rpc call to generate a list of s3 profiles
-            const newS3List = [];
-            setS3List(newS3List);
-            /////////
-        }, [changeConnModalOpen, setConnList]);
+            RpcApi.ConnListAWSCommand(TabRpcClient, { timeout: 2000 })
+                .then((s3List) => setS3List(s3List ?? []))
+                .catch((e) => console.log("unable to load s3 list from backend:", e));
+        }, [changeConnModalOpen]);
 
         const changeConnection = React.useCallback(
             async (connName: string) => {
@@ -393,10 +389,13 @@ const ChangeConnectionBlockModal = React.memo(
                 if (connName == blockData?.meta?.connection) {
                     return;
                 }
+                const isAws = connName?.startsWith("aws:");
                 const oldCwd = blockData?.meta?.file ?? "";
                 let newCwd: string;
                 if (oldCwd == "") {
                     newCwd = "";
+                } else if (isAws) {
+                    newCwd = "/";
                 } else {
                     newCwd = "~";
                 }
@@ -436,14 +435,17 @@ const ChangeConnectionBlockModal = React.memo(
             fullConfig,
             filterOutNowsh
         );
-        const s3Suggestions = getS3Suggestions(
-            s3List,
-            connection,
-            connSelected,
-            connStatusMap,
-            fullConfig,
-            filterOutNowsh
-        );
+        let s3Suggestions: SuggestionConnectionScope = null;
+        if (showS3) {
+            s3Suggestions = getS3Suggestions(
+                s3List,
+                connection,
+                connSelected,
+                connStatusMap,
+                fullConfig,
+                filterOutNowsh
+            );
+        }
         const connectionsEditItem = getConnectionsEditItem(changeConnModalAtom, connSelected);
         const disconnectItem = getDisconnectItem(connection, connStatusMap);
         const newConnectionSuggestionItem = getNewConnectionSuggestionItem(

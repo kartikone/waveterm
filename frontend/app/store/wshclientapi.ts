@@ -52,6 +52,11 @@ class RpcApiType {
         return client.wshRpcCall("connlist", null, opts);
     }
 
+    // command "connlistaws" [call]
+    ConnListAWSCommand(client: WshClient, opts?: RpcOpts): Promise<string[]> {
+        return client.wshRpcCall("connlistaws", null, opts);
+    }
+
     // command "connreinstallwsh" [call]
     ConnReinstallWshCommand(client: WshClient, data: ConnExtData, opts?: RpcOpts): Promise<void> {
         return client.wshRpcCall("connreinstallwsh", data, opts);
@@ -122,6 +127,11 @@ class RpcApiType {
         return client.wshRpcCall("dispose", data, opts);
     }
 
+    // command "disposesuggestions" [call]
+    DisposeSuggestionsCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
+        return client.wshRpcCall("disposesuggestions", data, opts);
+    }
+
     // command "eventpublish" [call]
     EventPublishCommand(client: WshClient, data: WaveEvent, opts?: RpcOpts): Promise<void> {
         return client.wshRpcCall("eventpublish", data, opts);
@@ -187,6 +197,11 @@ class RpcApiType {
         return client.wshRpcCall("fileinfo", data, opts);
     }
 
+    // command "filejoin" [call]
+    FileJoinCommand(client: WshClient, data: string[], opts?: RpcOpts): Promise<FileInfo> {
+        return client.wshRpcCall("filejoin", data, opts);
+    }
+
     // command "filelist" [call]
     FileListCommand(client: WshClient, data: FileListData, opts?: RpcOpts): Promise<FileInfo[]> {
         return client.wshRpcCall("filelist", data, opts);
@@ -212,6 +227,16 @@ class RpcApiType {
         return client.wshRpcCall("fileread", data, opts);
     }
 
+    // command "filereadstream" [responsestream]
+	FileReadStreamCommand(client: WshClient, data: FileData, opts?: RpcOpts): AsyncGenerator<FileData, void, boolean> {
+        return client.wshRpcStream("filereadstream", data, opts);
+    }
+
+    // command "filesharecapability" [call]
+    FileShareCapabilityCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<FileShareCapability> {
+        return client.wshRpcCall("filesharecapability", data, opts);
+    }
+
     // command "filestreamtar" [responsestream]
 	FileStreamTarCommand(client: WshClient, data: CommandRemoteStreamTarData, opts?: RpcOpts): AsyncGenerator<Packet, void, boolean> {
         return client.wshRpcStream("filestreamtar", data, opts);
@@ -235,6 +260,11 @@ class RpcApiType {
     // command "getmeta" [call]
     GetMetaCommand(client: WshClient, data: CommandGetMetaData, opts?: RpcOpts): Promise<MetaType> {
         return client.wshRpcCall("getmeta", data, opts);
+    }
+
+    // command "gettab" [call]
+    GetTabCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<Tab> {
+        return client.wshRpcCall("gettab", data, opts);
     }
 
     // command "getupdatechannel" [call]
@@ -268,7 +298,7 @@ class RpcApiType {
     }
 
     // command "remotefilecopy" [call]
-    RemoteFileCopyCommand(client: WshClient, data: CommandRemoteFileCopyData, opts?: RpcOpts): Promise<void> {
+    RemoteFileCopyCommand(client: WshClient, data: CommandFileCopyData, opts?: RpcOpts): Promise<boolean> {
         return client.wshRpcCall("remotefilecopy", data, opts);
     }
 
@@ -288,7 +318,7 @@ class RpcApiType {
     }
 
     // command "remotefilemove" [call]
-    RemoteFileMoveCommand(client: WshClient, data: CommandRemoteFileCopyData, opts?: RpcOpts): Promise<void> {
+    RemoteFileMoveCommand(client: WshClient, data: CommandFileCopyData, opts?: RpcOpts): Promise<void> {
         return client.wshRpcCall("remotefilemove", data, opts);
     }
 

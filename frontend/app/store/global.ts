@@ -17,6 +17,7 @@ import {
 } from "@/layout/lib/types";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { fetch } from "@/util/fetchutil";
+import { setPlatform } from "@/util/platformutil";
 import { deepCompareReturnPrev, getPrefixedSettings, isBlank } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { globalStore } from "./jotaiStore";
@@ -25,7 +26,6 @@ import { ClientService, ObjectService } from "./services";
 import * as WOS from "./wos";
 import { getFileSubject, waveEventSubscribe } from "./wps";
 
-let PLATFORM: NodeJS.Platform = "darwin";
 let atoms: GlobalAtomsType;
 let globalEnvironment: "electron" | "renderer";
 const blockComponentModelMap = new Map<string, BlockComponentModel>();
@@ -44,10 +44,6 @@ function initGlobal(initOpts: GlobalInitOptions) {
     globalEnvironment = initOpts.environment;
     setPlatform(initOpts.platform);
     initGlobalAtoms(initOpts);
-}
-
-function setPlatform(platform: NodeJS.Platform) {
-    PLATFORM = platform;
 }
 
 function initGlobalAtoms(initOpts: GlobalInitOptions) {
@@ -456,6 +452,9 @@ async function replaceBlock(blockId: string, blockDef: BlockDef): Promise<string
     const layoutModel = getLayoutModelForTabById(tabId);
     const rtOpts: RuntimeOpts = { termsize: { rows: 25, cols: 80 } };
     const newBlockId = await ObjectService.CreateBlock(blockDef, rtOpts);
+    setTimeout(async () => {
+        await ObjectService.DeleteBlock(blockId);
+    }, 300);
     const targetNodeId = layoutModel.getNodeByBlockId(blockId)?.id;
     if (targetNodeId == null) {
         throw new Error(`targetNodeId not found for blockId: ${blockId}`);
@@ -669,6 +668,17 @@ function getConnStatusAtom(conn: string): PrimitiveAtom<ConnStatus> {
                 wshenabled: false,
             };
             rtn = atom(connStatus);
+        } else if (conn.startsWith("aws:")) {
+            const connStatus: ConnStatus = {
+                connection: conn,
+                connected: true,
+                error: null,
+                status: "connected",
+                hasconnected: true,
+                activeconnnum: 0,
+                wshenabled: false,
+            };
+            rtn = atom(connStatus);
         } else {
             const connStatus: ConnStatus = {
                 connection: conn,
@@ -763,6 +773,7 @@ export {
     getBlockComponentModel,
     getBlockMetaKeyAtom,
     getConnStatusAtom,
+    getFocusedBlockId,
     getHostName,
     getObjectId,
     getOverrideConfigAtom,
@@ -775,7 +786,6 @@ export {
     isDev,
     loadConnStatus,
     openLink,
-    PLATFORM,
     pushFlashError,
     pushNotification,
     recordTEvent,

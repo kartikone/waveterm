@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from "@/app/element/button";
-import { CopyButton } from "@/app/element/copybutton";
 import { Input } from "@/app/element/input";
-import { useDimensionsWithCallbackRef } from "@/app/hook/useDimensions";
 import { ContextMenuModel } from "@/app/store/contextmenu";
-import { PLATFORM, atoms, createBlock, getApi, globalStore } from "@/app/store/global";
+import { atoms, getApi, globalStore } from "@/app/store/global";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import type { PreviewModel } from "@/app/view/preview/preview";
+import { type PreviewModel } from "@/app/view/preview/preview";
 import { checkKeyPressed, isCharacterKeyEvent } from "@/util/keyutil";
-import { fireAndForget, isBlank, makeConnRoute, makeNativeLabel } from "@/util/util";
+import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
+import { addOpenMenuItems } from "@/util/previewutil";
+import { fireAndForget, isBlank } from "@/util/util";
+import { formatRemoteUri } from "@/util/waveutil";
 import { offset, useDismiss, useFloating, useInteractions } from "@floating-ui/react";
 import {
     Column,
@@ -28,7 +29,7 @@ import clsx from "clsx";
 import dayjs from "dayjs";
 import { PrimitiveAtom, atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import React, { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
@@ -36,15 +37,13 @@ import "./directorypreview.scss";
 
 const PageJumpSize = 20;
 
-type FileCopyStatus = {
-    copyData: CommandFileCopyData;
-    copyError: string;
-    allowRetry: boolean;
-};
+const recursiveError = "recursive flag must be set for directory operations";
+const overwriteError = "set overwrite flag to delete the existing file";
+const mergeError = "set overwrite flag to delete the existing contents or set merge flag to merge the contents";
 
 declare module "@tanstack/react-table" {
     interface TableMeta<TData extends RowData> {
-        updateName: (path: string) => void;
+        updateName: (path: string, isDir: boolean) => void;
         newFile: () => void;
         newDirectory: () => void;
     }
@@ -212,6 +211,7 @@ function DirectoryTable({
     newDirectory,
 }: DirectoryTableProps) {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
+    const setErrorMsg = useSetAtom(model.errorMsgAtom);
     const getIconFromMimeType = useCallback(
         (mimeType: string): string => {
             while (mimeType.length > 0) {
@@ -287,7 +287,7 @@ function DirectoryTable({
 
     const setEntryManagerProps = useSetAtom(entryManagerOverlayPropsAtom);
 
-    const updateName = useCallback((path: string) => {
+    const updateName = useCallback((path: string, isDir: boolean) => {
         const fileName = path.split("/").at(-1);
         setEntryManagerProps({
             entryManagerType: EntryManagerType.EditName,
@@ -298,16 +298,47 @@ function DirectoryTable({
                     const lastInstance = path.lastIndexOf(fileName);
                     newPath = path.substring(0, lastInstance) + newName;
                     console.log(`replacing ${fileName} with ${newName}: ${path}`);
-                    fireAndForget(async () => {
-                        await RpcApi.FileMoveCommand(TabRpcClient, {
-                            srcuri: await model.formatRemoteUri(path, globalStore.get),
-                            desturi: await model.formatRemoteUri(newPath, globalStore.get),
-                            opts: {
-                                recursive: true,
-                            },
+                    const handleRename = (recursive: boolean) =>
+                        fireAndForget(async () => {
+                            try {
+                                let srcuri = await model.formatRemoteUri(path, globalStore.get);
+                                if (isDir) {
+                                    srcuri += "/";
+                                }
+                                await RpcApi.FileMoveCommand(TabRpcClient, {
+                                    srcuri,
+                                    desturi: await model.formatRemoteUri(newPath, globalStore.get),
+                                    opts: {
+                                        recursive,
+                                    },
+                                });
+                            } catch (e) {
+                                const errorText = `${e}`;
+                                console.warn(`Rename failed: ${errorText}`);
+                                let errorMsg: ErrorMsg;
+                                if (errorText.includes(recursiveError)) {
+                                    errorMsg = {
+                                        status: "Confirm Rename Directory",
+                                        text: "Renaming a directory requires the recursive flag. Proceed?",
+                                        level: "warning",
+                                        buttons: [
+                                            {
+                                                text: "Rename Recursively",
+                                                onClick: () => handleRename(true),
+                                            },
+                                        ],
+                                    };
+                                } else {
+                                    errorMsg = {
+                                        status: "Rename Failed",
+                                        text: `${e}`,
+                                    };
+                                }
+                                setErrorMsg(errorMsg);
+                            }
+                            model.refreshCallback();
                         });
-                        model.refreshCallback();
-                    });
+                    handleRename(false);
                 }
                 setEntryManagerProps(undefined);
             },
@@ -352,7 +383,7 @@ function DirectoryTable({
         setSelectedPath((allRows[focusIndex]?.getValue("path") as string) ?? null);
     }, [table, focusIndex, data]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const rows = table.getRowModel()?.flatRows;
         for (const row of rows) {
             if (row.getValue("name") == "..") {
@@ -360,7 +391,7 @@ function DirectoryTable({
                 return;
             }
         }
-    }, [table]);
+    }, [table, data]);
     const columnSizeVars = useMemo(() => {
         const headers = table.getFlatHeaders();
         const colSizes: { [key: string]: number } = {};
@@ -454,13 +485,6 @@ function DirectoryTable({
     );
 }
 
-function getNormFilePath(finfo: FileInfo): string {
-    if (finfo.isdir) {
-        return finfo.dir;
-    }
-    return finfo.dir + "/" + finfo.name;
-}
-
 interface TableBodyProps {
     bodyRef: React.RefObject<HTMLDivElement>;
     model: PreviewModel;
@@ -490,6 +514,7 @@ function TableBody({
     const warningBoxRef = useRef<HTMLDivElement>();
     const rowRefs = useRef<HTMLDivElement[]>([]);
     const conn = useAtomValue(model.connection);
+    const setErrorMsg = useSetAtom(model.errorMsgAtom);
 
     useEffect(() => {
         if (focusIndex !== null && rowRefs.current[focusIndex] && bodyRef.current && osRef) {
@@ -524,17 +549,41 @@ function TableBody({
             if (finfo == null) {
                 return;
             }
-            const normPath = getNormFilePath(finfo);
             const fileName = finfo.path.split("/").pop();
-            let parentFileInfo: FileInfo;
-            try {
-                parentFileInfo = await RpcApi.RemoteFileJoinCommand(TabRpcClient, [normPath, ".."], {
-                    route: makeConnRoute(conn),
+            const handleFileDelete = (recursive: boolean) =>
+                fireAndForget(async () => {
+                    const path = await model.formatRemoteUri(finfo.path, globalStore.get);
+                    try {
+                        await RpcApi.FileDeleteCommand(TabRpcClient, {
+                            path,
+                            recursive,
+                        });
+                    } catch (e) {
+                        const errorText = `${e}`;
+                        console.warn(`Delete failed: ${errorText}`);
+                        let errorMsg: ErrorMsg;
+                        if (errorText.includes(recursiveError)) {
+                            errorMsg = {
+                                status: "Confirm Delete Directory",
+                                text: "Deleting a directory requires the recursive flag. Proceed?",
+                                level: "warning",
+                                buttons: [
+                                    {
+                                        text: "Delete Recursively",
+                                        onClick: () => handleFileDelete(true),
+                                    },
+                                ],
+                            };
+                        } else {
+                            errorMsg = {
+                                status: "Delete Failed",
+                                text: `${e}`,
+                            };
+                        }
+                        setErrorMsg(errorMsg);
+                    }
+                    setRefreshVersion((current) => current + 1);
                 });
-            } catch (e) {
-                console.log("could not get parent file info. using child file info as fallback");
-                parentFileInfo = finfo;
-            }
             const menu: ContextMenuItem[] = [
                 {
                     label: "New File",
@@ -551,7 +600,7 @@ function TableBody({
                 {
                     label: "Rename",
                     click: () => {
-                        table.options.meta.updateName(finfo.path);
+                        table.options.meta.updateName(finfo.path, finfo.isdir);
                     },
                 },
                 {
@@ -573,85 +622,15 @@ function TableBody({
                     label: "Copy Full File Name (Shell Quoted)",
                     click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([finfo.path]))),
                 },
-                {
-                    type: "separator",
-                },
-                {
-                    label: "Download File",
-                    click: () => {
-                        getApi().downloadFile(normPath);
-                    },
-                },
-                {
-                    type: "separator",
-                },
-                {
-                    label: "Open Preview in New Block",
-                    click: () =>
-                        fireAndForget(async () => {
-                            const blockDef: BlockDef = {
-                                meta: {
-                                    view: "preview",
-                                    file: finfo.path,
-                                    connection: conn,
-                                },
-                            };
-                            await createBlock(blockDef);
-                        }),
-                },
             ];
-            if (!conn) {
-                menu.push(
-                    {
-                        type: "separator",
-                    },
-                    // TODO: resolve correct host path if connection is WSL
-                    {
-                        label: makeNativeLabel(PLATFORM, finfo.isdir, false),
-                        click: () => {
-                            getApi().openNativePath(normPath);
-                        },
-                    },
-                    {
-                        label: makeNativeLabel(PLATFORM, true, true),
-                        click: () => {
-                            getApi().openNativePath(parentFileInfo.dir);
-                        },
-                    }
-                );
-            }
-            if (finfo.mimetype == "directory") {
-                menu.push({
-                    label: "Open Terminal in New Block",
-                    click: () =>
-                        fireAndForget(async () => {
-                            const termBlockDef: BlockDef = {
-                                meta: {
-                                    controller: "shell",
-                                    view: "term",
-                                    "cmd:cwd": await model.formatRemoteUri(finfo.path, globalStore.get),
-                                    connection: conn,
-                                },
-                            };
-                            await createBlock(termBlockDef);
-                        }),
-                });
-            }
+            addOpenMenuItems(menu, conn, finfo);
             menu.push(
                 {
                     type: "separator",
                 },
                 {
                     label: "Delete",
-                    click: () => {
-                        fireAndForget(async () => {
-                            await RpcApi.FileDeleteCommand(TabRpcClient, {
-                                path: await model.formatRemoteUri(finfo.path, globalStore.get),
-                                recursive: false,
-                            }).catch((e) => console.log(e));
-                            setRefreshVersion((current) => current + 1);
-                        });
-                    },
+                    click: () => handleFileDelete(false),
                 }
             );
             ContextMenuModel.showContextMenu(menu, e);
@@ -683,7 +662,6 @@ function TableBody({
                         setSearch={setSearch}
                         idx={idx}
                         handleFileContextMenu={handleFileContextMenu}
-                        ref={(el) => (rowRefs.current[idx] = el)}
                         key={idx}
                     />
                 ))}
@@ -696,7 +674,6 @@ function TableBody({
                         setSearch={setSearch}
                         idx={idx + table.getTopRows().length}
                         handleFileContextMenu={handleFileContextMenu}
-                        ref={(el) => (rowRefs.current[idx] = el)}
                         key={idx}
                     />
                 ))}
@@ -715,40 +692,29 @@ type TableRowProps = {
     handleFileContextMenu: (e: any, finfo: FileInfo) => Promise<void>;
 };
 
-const TableRow = React.forwardRef(function (
-    { model, row, focusIndex, setFocusIndex, setSearch, idx, handleFileContextMenu }: TableRowProps,
-    ref: React.RefObject<HTMLDivElement>
-) {
-    const dirPath = useAtomValue(model.normFilePath);
+const TableRow = React.forwardRef(function ({
+    model,
+    row,
+    focusIndex,
+    setFocusIndex,
+    setSearch,
+    idx,
+    handleFileContextMenu,
+}: TableRowProps) {
+    const dirPath = useAtomValue(model.statFilePath);
     const connection = useAtomValue(model.connection);
-    const formatRemoteUri = useCallback(
-        (path: string) => {
-            let conn: string;
-            if (!connection) {
-                conn = "local";
-            } else {
-                conn = connection;
-            }
-            return `wsh://${conn}/${path}`;
-        },
-        [connection]
-    );
 
     const dragItem: DraggedFile = {
         relName: row.getValue("name") as string,
         absParent: dirPath,
-        uri: formatRemoteUri(row.getValue("path") as string),
+        uri: formatRemoteUri(row.getValue("path") as string, connection),
+        isDir: row.original.isdir,
     };
-    const [{ isDragging }, drag, dragPreview] = useDrag(
+    const [_, drag] = useDrag(
         () => ({
             type: "FILE_ITEM",
             canDrag: true,
             item: () => dragItem,
-            collect: (monitor) => {
-                return {
-                    isDragging: monitor.isDragging(),
-                };
-            },
         }),
         [dragItem]
     );
@@ -791,14 +757,14 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const [searchText, setSearchText] = useState("");
     const [focusIndex, setFocusIndex] = useState(0);
     const [unfilteredData, setUnfilteredData] = useState<FileInfo[]>([]);
-    const [filteredData, setFilteredData] = useState<FileInfo[]>([]);
     const showHiddenFiles = useAtomValue(model.showHiddenFiles);
     const [selectedPath, setSelectedPath] = useState("");
     const [refreshVersion, setRefreshVersion] = useAtom(model.refreshVersion);
     const conn = useAtomValue(model.connection);
     const blockData = useAtomValue(model.blockAtom);
-    const dirPath = useAtomValue(model.normFilePath);
-    const [copyStatus, setCopyStatus] = useState<FileCopyStatus>(null);
+    const finfo = useAtomValue(model.statFile);
+    const dirPath = finfo?.path;
+    const setErrorMsg = useSetAtom(model.errorMsgAtom);
 
     useEffect(() => {
         model.refreshCallback = () => {
@@ -809,31 +775,55 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         };
     }, [setRefreshVersion]);
 
-    useEffect(() => {
-        const getContent = async () => {
-            const file = await RpcApi.FileReadCommand(
-                TabRpcClient,
-                {
-                    info: {
-                        path: await model.formatRemoteUri(dirPath, globalStore.get),
-                    },
-                },
-                null
-            );
-            setUnfilteredData(file.entries);
-        };
-        getContent();
-    }, [conn, dirPath, refreshVersion]);
+    useEffect(
+        () =>
+            fireAndForget(async () => {
+                let entries: FileInfo[];
+                try {
+                    const file = await RpcApi.FileReadCommand(
+                        TabRpcClient,
+                        {
+                            info: {
+                                path: await model.formatRemoteUri(dirPath, globalStore.get),
+                            },
+                        },
+                        null
+                    );
+                    entries = file.entries ?? [];
+                    if (file?.info && file.info.dir && file.info?.path !== file.info?.dir) {
+                        entries.unshift({
+                            name: "..",
+                            path: file?.info?.dir,
+                            isdir: true,
+                            modtime: new Date().getTime(),
+                            mimetype: "directory",
+                        });
+                    }
+                } catch (e) {
+                    setErrorMsg({
+                        status: "Cannot Read Directory",
+                        text: `${e}`,
+                    });
+                }
+                setUnfilteredData(entries);
+            }),
+        [conn, dirPath, refreshVersion]
+    );
 
-    useEffect(() => {
-        const filtered = unfilteredData?.filter((fileInfo) => {
-            if (!showHiddenFiles && fileInfo.name.startsWith(".") && fileInfo.name != "..") {
-                return false;
-            }
-            return fileInfo.name.toLowerCase().includes(searchText);
-        });
-        setFilteredData(filtered ?? []);
-    }, [unfilteredData, showHiddenFiles, searchText]);
+    const filteredData = useMemo(
+        () =>
+            unfilteredData?.filter((fileInfo) => {
+                if (fileInfo.name == null) {
+                    console.log("fileInfo.name is null", fileInfo);
+                    return false;
+                }
+                if (!showHiddenFiles && fileInfo.name.startsWith(".") && fileInfo.name != "..") {
+                    return false;
+                }
+                return fileInfo.name.toLowerCase().includes(searchText);
+            }) ?? [],
+        [unfilteredData, showHiddenFiles, searchText]
+    );
 
     useEffect(() => {
         model.directoryKeyDownHandler = (waveEvent: WaveKeyboardEvent): boolean => {
@@ -875,7 +865,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             if (
                 checkKeyPressed(waveEvent, "Space") &&
                 searchText == "" &&
-                PLATFORM == "darwin" &&
+                PLATFORM == PlatformMacOS &&
                 !blockData?.meta?.connection
             ) {
                 getApi().onQuicklook(selectedPath);
@@ -910,24 +900,48 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     });
 
     const handleDropCopy = useCallback(
-        async (data: CommandFileCopyData) => {
+        async (data: CommandFileCopyData, isDir: boolean) => {
             try {
                 await RpcApi.FileCopyCommand(TabRpcClient, data, { timeout: data.opts.timeout });
-                setCopyStatus(null);
             } catch (e) {
-                console.log("copy failed:", e);
+                console.warn("Copy failed:", e);
                 const copyError = `${e}`;
-                const allowRetry = copyError.endsWith("overwrite not specified");
-                const copyStatus: FileCopyStatus = {
-                    copyError,
-                    copyData: data,
-                    allowRetry,
-                };
-                setCopyStatus(copyStatus);
+                const allowRetry = copyError.includes(overwriteError) || copyError.includes(mergeError);
+                let errorMsg: ErrorMsg;
+                if (allowRetry) {
+                    errorMsg = {
+                        status: "Confirm Overwrite File(s)",
+                        text: "This copy operation will overwrite an existing file. Would you like to continue?",
+                        level: "warning",
+                        buttons: [
+                            {
+                                text: "Delete Then Copy",
+                                onClick: async () => {
+                                    data.opts.overwrite = true;
+                                    await handleDropCopy(data, isDir);
+                                },
+                            },
+                            {
+                                text: "Sync",
+                                onClick: async () => {
+                                    data.opts.merge = true;
+                                    await handleDropCopy(data, isDir);
+                                },
+                            },
+                        ],
+                    };
+                } else {
+                    errorMsg = {
+                        status: "Copy Failed",
+                        text: copyError,
+                        level: "error",
+                    };
+                }
+                setErrorMsg(errorMsg);
             }
             model.refreshCallback();
         },
-        [setCopyStatus, model.refreshCallback]
+        [model.refreshCallback]
     );
 
     const [, drop] = useDrop(
@@ -955,12 +969,12 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                         desturi,
                         opts,
                     };
-                    await handleDropCopy(data);
+                    await handleDropCopy(data, draggedFile.isDir);
                 }
             },
             // TODO: mabe add a hover option?
         }),
-        [dirPath, model.formatRemoteUri, model.refreshCallback, setCopyStatus]
+        [dirPath, model.formatRemoteUri, model.refreshCallback]
     );
 
     useEffect(() => {
@@ -1030,29 +1044,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     type: "separator",
                 },
             ];
-            if (!conn) {
-                // TODO:  resolve correct host path if connection is WSL
-                menu.push({
-                    label: makeNativeLabel(PLATFORM, true, true),
-                    click: () => {
-                        getApi().openNativePath(dirPath);
-                    },
-                });
-            }
-            menu.push({
-                label: "Open Terminal in New Block",
-                click: async () => {
-                    const termBlockDef: BlockDef = {
-                        meta: {
-                            controller: "shell",
-                            view: "term",
-                            "cmd:cwd": dirPath,
-                            connection: conn,
-                        },
-                    };
-                    await createBlock(termBlockDef);
-                },
-            });
+            addOpenMenuItems(menu, conn, finfo);
 
             ContextMenuModel.showContextMenu(menu, e);
         },
@@ -1074,13 +1066,6 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 onContextMenu={(e) => handleFileContextMenu(e)}
                 onClick={() => setEntryManagerProps(undefined)}
             >
-                {copyStatus != null && (
-                    <CopyErrorOverlay
-                        copyStatus={copyStatus}
-                        setCopyStatus={setCopyStatus}
-                        handleDropCopy={handleDropCopy}
-                    />
-                )}
                 <DirectoryTable
                     model={model}
                     data={filteredData}
@@ -1107,103 +1092,5 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         </Fragment>
     );
 }
-
-const CopyErrorOverlay = React.memo(
-    ({
-        copyStatus,
-        setCopyStatus,
-        handleDropCopy,
-    }: {
-        copyStatus: FileCopyStatus;
-        setCopyStatus: (_: FileCopyStatus) => void;
-        handleDropCopy: (data: CommandFileCopyData) => Promise<void>;
-    }) => {
-        const [overlayRefCallback, _, domRect] = useDimensionsWithCallbackRef(30);
-        const width = domRect?.width;
-
-        const handleRetryCopy = React.useCallback(async () => {
-            if (!copyStatus) {
-                return;
-            }
-            const updatedData = {
-                ...copyStatus.copyData,
-                opts: { ...copyStatus.copyData.opts, overwrite: true },
-            };
-            await handleDropCopy(updatedData);
-        }, [copyStatus.copyData]);
-
-        let statusText = "Copy Error";
-        let errorMsg = `error: ${copyStatus?.copyError}`;
-        if (copyStatus?.allowRetry) {
-            statusText = "Confirm Overwrite File(s)";
-            errorMsg = "This copy operation will overwrite an existing file. Would you like to continue?";
-        }
-
-        const buttonClassName = "outlined grey font-size-11 vertical-padding-3 horizontal-padding-7";
-
-        const handleRemoveCopyError = React.useCallback(async () => {
-            setCopyStatus(null);
-        }, [setCopyStatus]);
-
-        const handleCopyToClipboard = React.useCallback(async () => {
-            await navigator.clipboard.writeText(errorMsg);
-        }, [errorMsg]);
-
-        return (
-            <div
-                ref={overlayRefCallback}
-                className="absolute top-[0] left-1.5 right-1.5 z-[var(--zindex-block-mask-inner)] overflow-hidden bg-[var(--conn-status-overlay-bg-color)] backdrop-blur-[50px] rounded-md shadow-lg"
-            >
-                <div className="flex flex-row justify-between p-2.5 pl-3 font-[var(--base-font)] text-[var(--secondary-text-color)]">
-                    <div
-                        className={clsx("flex flex-row items-center gap-3 grow min-w-0", {
-                            "items-start": true,
-                        })}
-                    >
-                        <i className="fa-solid fa-triangle-exclamation text-[#e6ba1e] text-base"></i>
-
-                        <div className="flex flex-col items-start gap-1 grow w-full">
-                            <div className="max-w-full text-xs font-semibold leading-4 tracking-[0.11px] text-white">
-                                {statusText}
-                            </div>
-
-                            <OverlayScrollbarsComponent
-                                className="group text-xs font-normal leading-[15px] tracking-[0.11px] text-wrap max-h-20 rounded-lg py-1.5 pl-0 relative w-full"
-                                options={{ scrollbars: { autoHide: "leave" } }}
-                            >
-                                <CopyButton
-                                    className="invisible group-hover:visible flex absolute top-0 right-1 rounded backdrop-blur-lg p-1 items-center justify-end gap-1"
-                                    onClick={handleCopyToClipboard}
-                                    title="Copy"
-                                />
-                                <div>{errorMsg}</div>
-                            </OverlayScrollbarsComponent>
-
-                            {copyStatus?.allowRetry && (
-                                <div className="flex flex-row gap-1.5">
-                                    <Button className={buttonClassName} onClick={handleRetryCopy}>
-                                        Override
-                                    </Button>
-                                    <Button className={buttonClassName} onClick={handleRemoveCopyError}>
-                                        Cancel
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-
-                        {!copyStatus?.allowRetry && (
-                            <div className="flex items-start">
-                                <Button
-                                    className={clsx(buttonClassName, "fa-xmark fa-solid")}
-                                    onClick={handleRemoveCopyError}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    }
-);
 
 export { DirectoryPreview };
